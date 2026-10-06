@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ROBOT SPACE MAZE: THE BATTERY HUNT (V21 REVISED)</title>
+    <title>ROBOT SPACE MAZE: THE BATTERY HUNT (V22 REVISED)</title>
     <!-- Firebase JS SDK (v8 Compat) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- YouTube IFrame Player API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         :root {
@@ -37,7 +39,7 @@
             align-items: center;
             box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
         }
-        .logo { font-size: 1.25rem; font-weight: bold; color: var(--neon-blue); letter-spacing: 1.5px; text-shadow: 0 0 10px var(--neon-blue); display: flex; align-items: center; gap: 8px; }
+        .logo { font-size: 1.2rem; font-weight: bold; color: var(--neon-blue); letter-spacing: 1.2px; text-shadow: 0 0 10px var(--neon-blue); display: flex; align-items: center; gap: 8px; }
         .room-badge { background: var(--panel-bg); border: 1px solid var(--neon-purple); padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; box-shadow: 0 0 8px rgba(157, 78, 221, 0.4); }
         .conn-badge { background: rgba(0, 255, 102, 0.15); border: 1px solid var(--neon-green); color: var(--neon-green); padding: 5px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: bold; }
 
@@ -316,10 +318,11 @@
 
         .sound-btn {
             background: rgba(0, 240, 255, 0.12); border: 1px solid var(--neon-blue); color: var(--neon-blue);
-            padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.8rem; font-weight: bold;
+            padding: 5px 10px; border-radius: 15px; cursor: pointer; font-size: 0.78rem; font-weight: bold;
             box-shadow: 0 0 8px rgba(0, 240, 255, 0.2); transition: 0.2s;
         }
         .sound-btn:hover { background: rgba(0, 240, 255, 0.25); box-shadow: 0 0 15px var(--neon-blue); }
+        .sound-btn.off { background: rgba(255, 0, 85, 0.15); border-color: var(--neon-red); color: var(--neon-red); }
 
         .history-table {
             width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8rem; text-align: left;
@@ -330,20 +333,22 @@
         .history-table th { background: #0e172a; color: var(--neon-blue); }
     </style>
 </head>
-<body onclick="forceUnlockAudioOnUserClick()" ontouchstart="forceUnlockAudioOnUserClick()">
+<body onclick="handleGlobalGestureUnlock()" ontouchstart="handleGlobalGestureUnlock()">
 
-    <!-- YOUTUBE IFRAME WITH AUTOPLAY PERMISSIONS -->
-    <div id="youtube-audio-player-container" style="position: fixed; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; overflow: hidden; top: -100px; left: -100px; z-index: -999;">
-        <iframe id="yt-bgm-iframe" src="https://www.youtube.com/embed/hrgzWEgCCFg?enablejsapi=1&autoplay=1&loop=1&playlist=hrgzWEgCCFg&controls=0&playsinline=1" allow="autoplay; encrypted-media" style="width:1px; height:1px; border:none;"></iframe>
+    <!-- YOUTUBE IFRAME DEDICATED PLAYER FOR BGM -->
+    <div id="youtube-player-wrapper" style="position: fixed; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; top: -100px; left: -100px; z-index: -999;">
+        <div id="yt-player-element"></div>
     </div>
 
     <!-- NAVBAR HEADER -->
     <header>
         <div class="logo">🤖 ROBOT SPACE MAZE: THE BATTERY HUNT</div>
         <div id="role-display" style="font-weight: bold; color: var(--neon-yellow);">Pilih Peran Permainan</div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
             <div class="conn-badge" id="conn-status-display">🔥 FIREBASE: TERHUBUNG</div>
-            <button class="sound-btn" id="main-sound-toggle-btn" onclick="toggleAudio()"><span id="sound-icon">🔊</span> BACKSOUND: LOUD ON</button>
+            <!-- TERPISAH TOMBOL BGM DAN SFX -->
+            <button class="sound-btn" id="bgm-toggle-btn" onclick="toggleBGM()"><span id="bgm-icon">🎵</span> BGM YOUTUBE: ON</button>
+            <button class="sound-btn" id="sfx-toggle-btn" onclick="toggleSFX()"><span id="sfx-icon">🔊</span> SFX GAME: ON</button>
             <div class="room-badge" id="room-info">ROOM: <span id="room-code-val">----</span></div>
         </div>
     </header>
@@ -353,10 +358,13 @@
         <div class="role-card">
             <h2>🚀 PILIH PERAN PERMAINAN</h2>
             
-            <div style="background: rgba(255, 238, 0, 0.12); border: 1px solid var(--neon-yellow); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.82rem; color: var(--neon-yellow);">
-                🎵 <b>SUARA / BACKSOUND PERMAINAN:</b><br>
-                <button class="btn" style="background: linear-gradient(45deg, #ffee00, #ff8800); color: #000; font-size: 0.88rem; padding: 6px 12px; margin-top: 5px;" onclick="userExplicitAudioTest()">🔊 KLIK UNTUK AKTIFKAN SUARA LOUD ON</button>
-                <div id="audio-status-msg" style="margin-top: 4px; font-size: 0.75rem; color: #a0aec0;">Status: Menunggu Klik Pengguna...</div>
+            <div style="background: rgba(0, 240, 255, 0.08); border: 1px solid var(--neon-blue); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.82rem; color: var(--neon-blue);">
+                🎵 <b>KONTROL SUARA YOUTUBE BGM & SFX:</b>
+                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                    <button class="btn" style="flex: 1; padding: 7px; font-size: 0.8rem;" onclick="manualPlayBGM()">▶ PUTAR BGM YOUTUBE</button>
+                    <button class="btn btn-secondary" style="flex: 1; padding: 7px; font-size: 0.8rem;" onclick="testSFXSound()">🔊 TES EFEK SUARA</button>
+                </div>
+                <div id="audio-status-msg" style="margin-top: 5px; font-size: 0.75rem; color: var(--neon-yellow);">Status: Siap Memutar Backsound YouTube</div>
             </div>
 
             <p style="margin-bottom: 6px; color: #a0aec0; font-size: 0.85rem;">Masukkan Kode Ruangan untuk Sinkronisasi Lintas Gadget:</p>
@@ -917,10 +925,10 @@
                         gameState = data.gameState;
                         updateGameStateUI();
 
-                        if (gameState.started && !gameState.paused && isAudioOn) {
-                            playBGM();
+                        if (gameState.started && !gameState.paused && isBgmOn) {
+                            playYouTubeBGM();
                         } else if (gameState.paused) {
-                            stopBGM();
+                            stopYouTubeBGM();
                         }
                     }
 
@@ -952,7 +960,7 @@
                 clearInterval(gameState.timerInterval);
                 gameState.timerInterval = null;
             }
-            stopBGM();
+            stopYouTubeBGM();
 
             document.getElementById('app-container').style.display = 'none';
             document.getElementById('role-overlay').style.display = 'flex';
@@ -992,148 +1000,181 @@
             return hrs + "." + mins + "." + secs;
         }
 
-        /* === V21 GUARANTEED AUDIO ENGINE === */
+        /* === V22 AUDIO REVISION: STRICT YOUTUBE BGM & SEPARATE SFX CONTROLS === */
+        let ytPlayer = null;
+        let isYtReady = false;
+        let isBgmOn = true;
+        let isSfxOn = true;
         let audioCtx = null;
         let masterGainNode = null;
-        let synthBgmTimer = null;
-        let isAudioOn = true;
-        let audioUnlocked = false;
+        let userHasClicked = false;
 
-        function forceUnlockAudioOnUserClick() {
-            if (!audioCtx) {
-                initAudioContext();
+        function onYouTubeIframeAPIReady() {
+            try {
+                ytPlayer = new YT.Player('yt-player-element', {
+                    height: '1',
+                    width: '1',
+                    videoId: 'hrgzWEgCCFg',
+                    playerVars: {
+                        'autoplay': 1,
+                        'controls': 0,
+                        'loop': 1,
+                        'playlist': 'hrgzWEgCCFg',
+                        'playsinline': 1,
+                        'enablejsapi': 1,
+                        'origin': window.location.origin || '*'
+                    },
+                    events: {
+                        'onReady': onYtPlayerReady,
+                        'onError': onYtPlayerError
+                    }
+                });
+            } catch(e) {
+                console.log("YouTube API Player Init Exception:", e);
+            }
+        }
+
+        function onYtPlayerReady(event) {
+            isYtReady = true;
+            try {
+                event.target.setVolume(100);
+            } catch(e){}
+            updateAudioMsg("🟢 YouTube BGM Ready!");
+            if (isBgmOn && gameState.started && !gameState.paused) {
+                playYouTubeBGM();
+            }
+        }
+
+        function onYtPlayerError(event) {
+            console.log("YouTube Player Error:", event.data);
+            updateAudioMsg("⚠️ YouTube BGM Error Code: " + event.data);
+        }
+
+        function handleGlobalGestureUnlock() {
+            if (!userHasClicked) {
+                userHasClicked = true;
+                initSFXAudioContext();
             }
             if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume().then(() => {
-                    audioUnlocked = true;
-                    updateAudioStatusDisplay("🟢 Audio Context Aktif & Berjalan!");
-                }).catch(e => console.log("Audio unlock error:", e));
-            } else if (audioCtx && audioCtx.state === 'running') {
-                audioUnlocked = true;
-                updateAudioStatusDisplay("🟢 Audio Context Aktif!");
+                audioCtx.resume();
             }
+            if (isBgmOn && gameState.started && !gameState.paused) {
+                playYouTubeBGM();
+            }
+        }
 
-            const iframe = document.getElementById('yt-bgm-iframe');
-            if (iframe && iframe.contentWindow) {
+        function playYouTubeBGM() {
+            if (!isBgmOn) return;
+            if (isYtReady && ytPlayer && typeof ytPlayer.playVideo === 'function') {
                 try {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-                } catch(e){}
-            }
-
-            if (isAudioOn) {
-                playBGM();
-            }
-        }
-
-        function initAudioContext() {
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                masterGainNode = audioCtx.createGain();
-                masterGainNode.gain.setValueAtTime(1.2, audioCtx.currentTime);
-                masterGainNode.connect(audioCtx.destination);
-            } catch(e) {
-                console.log("Web Audio API not supported:", e);
+                    ytPlayer.playVideo();
+                    ytPlayer.unMute();
+                    ytPlayer.setVolume(100);
+                    updateAudioMsg("🎵 Backsound YouTube Sedang Diputar...");
+                } catch(e) {
+                    console.log("Error playing YT BGM:", e);
+                }
             }
         }
 
-        function updateAudioStatusDisplay(msg) {
-            const el = document.getElementById('audio-status-msg');
-            if (el) el.innerHTML = msg;
-        }
-
-        function userExplicitAudioTest() {
-            forceUnlockAudioOnUserClick();
-            playSound('fanfare');
-            updateAudioStatusDisplay("🔊 BACKSOUND LOUD ON & TONE TES DIINSIALISASI!");
-        }
-
-        function playBGM() {
-            if (!isAudioOn) return;
-            if (!audioCtx) initAudioContext();
-
-            startMelodicSciFiBGM();
-
-            const iframe = document.getElementById('yt-bgm-iframe');
-            if (iframe && iframe.contentWindow) {
+        function stopYouTubeBGM() {
+            if (isYtReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
                 try {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                    ytPlayer.pauseVideo();
+                    updateAudioMsg("⏸ Backsound YouTube Diberhentikan");
                 } catch(e){}
             }
         }
 
-        function stopBGM() {
-            stopMelodicSciFiBGM();
-            const iframe = document.getElementById('yt-bgm-iframe');
-            if (iframe && iframe.contentWindow) {
-                try {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                } catch(e){}
-            }
+        function manualPlayBGM() {
+            handleGlobalGestureUnlock();
+            isBgmOn = true;
+            updateBgmButtonUI();
+            playYouTubeBGM();
         }
 
-        function startMelodicSciFiBGM() {
-            if (synthBgmTimer) return;
-            if (!audioCtx) initAudioContext();
-
-            const bassline = [110.00, 110.00, 130.81, 146.83, 98.00, 110.00, 123.47, 130.81];
-            const synthArp = [220.00, 261.63, 329.63, 392.00, 440.00, 523.25, 659.25, 523.25];
-            let step = 0;
-
-            synthBgmTimer = setInterval(() => {
-                if(!isAudioOn || !audioCtx || audioCtx.state !== 'running') return;
-                const now = audioCtx.currentTime;
-                
-                const bassOsc = audioCtx.createOscillator(); 
-                const bassGain = audioCtx.createGain();
-                bassOsc.type = 'triangle'; 
-                bassOsc.frequency.setValueAtTime(bassline[step % bassline.length], now);
-                bassGain.gain.setValueAtTime(0.25, now); 
-                bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-                bassOsc.connect(bassGain); 
-                bassGain.connect(masterGainNode);
-                bassOsc.start(now); 
-                bassOsc.stop(now + 0.32);
-
-                const leadOsc = audioCtx.createOscillator(); 
-                const leadGain = audioCtx.createGain();
-                leadOsc.type = 'sine'; 
-                leadOsc.frequency.setValueAtTime(synthArp[(step * 3) % synthArp.length], now);
-                leadGain.gain.setValueAtTime(0.18, now); 
-                leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-                leadOsc.connect(leadGain); 
-                leadOsc.connect(masterGainNode);
-                leadOsc.start(now); 
-                leadOsc.stop(now + 0.22);
-
-                step++;
-            }, 300);
-        }
-
-        function stopMelodicSciFiBGM() {
-            if (synthBgmTimer) {
-                clearInterval(synthBgmTimer);
-                synthBgmTimer = null;
-            }
-        }
-
-        function toggleAudio() {
-            isAudioOn = !isAudioOn;
-            document.getElementById('sound-icon').innerText = isAudioOn ? "🔊" : "🔇";
-            document.getElementById('main-sound-toggle-btn').innerHTML = (isAudioOn ? '<span id="sound-icon">🔊</span> BACKSOUND: LOUD ON' : '<span id="sound-icon">🔇</span> BACKSOUND: OFF');
-            
-            forceUnlockAudioOnUserClick();
-
-            if (isAudioOn) {
-                playBGM();
+        function toggleBGM() {
+            handleGlobalGestureUnlock();
+            isBgmOn = !isBgmOn;
+            updateBgmButtonUI();
+            if (isBgmOn) {
+                playYouTubeBGM();
             } else {
-                stopBGM();
+                stopYouTubeBGM();
+            }
+        }
+
+        function updateBgmButtonUI() {
+            const btn = document.getElementById('bgm-toggle-btn');
+            const icon = document.getElementById('bgm-icon');
+            if (btn && icon) {
+                if (isBgmOn) {
+                    btn.className = 'sound-btn';
+                    btn.innerHTML = '<span id="bgm-icon">🎵</span> BGM YOUTUBE: ON';
+                } else {
+                    btn.className = 'sound-btn off';
+                    btn.innerHTML = '<span id="bgm-icon">🔇</span> BGM YOUTUBE: OFF';
+                }
+            }
+        }
+
+        function toggleSFX() {
+            handleGlobalGestureUnlock();
+            isSfxOn = !isSfxOn;
+            updateSfxButtonUI();
+            if (isSfxOn) {
+                playSound('move');
+            }
+        }
+
+        function updateSfxButtonUI() {
+            const btn = document.getElementById('sfx-toggle-btn');
+            const icon = document.getElementById('sfx-icon');
+            if (btn && icon) {
+                if (isSfxOn) {
+                    btn.className = 'sound-btn';
+                    btn.innerHTML = '<span id="sfx-icon">🔊</span> SFX GAME: ON';
+                } else {
+                    btn.className = 'sound-btn off';
+                    btn.innerHTML = '<span id="sfx-icon">🔇</span> SFX GAME: OFF';
+                }
+            }
+        }
+
+        function testSFXSound() {
+            handleGlobalGestureUnlock();
+            isSfxOn = true;
+            updateSfxButtonUI();
+            playSound('fanfare');
+            updateAudioMsg("🔊 Efek Suara (SFX) Berfungsi Dengan Baik!");
+        }
+
+        function updateAudioMsg(msg) {
+            const el = document.getElementById('audio-status-msg');
+            if (el) el.innerText = msg;
+        }
+
+        /* WEB AUDIO SFX FOR GAMEPLAY ONLY (MOVE, SHOCK, ROT, REFLECT, FANFARE) */
+        function initSFXAudioContext() {
+            if(!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    masterGainNode = audioCtx.createGain();
+                    masterGainNode.gain.setValueAtTime(1.2, audioCtx.currentTime);
+                    masterGainNode.connect(audioCtx.destination);
+                } catch(e) {
+                    console.log("AudioContext exception:", e);
+                }
+            }
+            if(audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
         }
 
         function playSound(type) {
-            if(!isAudioOn) return;
-            if(!audioCtx) initAudioContext();
-            if(audioCtx.state !== 'running') audioCtx.resume();
+            if(!isSfxOn) return;
+            initSFXAudioContext();
+            if(!audioCtx || audioCtx.state !== 'running') return;
 
             const now = audioCtx.currentTime;
             const osc = audioCtx.createOscillator();
@@ -1250,7 +1291,7 @@
             });
         }
 
-        /* === DENAH FIXXX.PNG CANVAS RENDERING V21 === */
+        /* === DENAH FIXXX.PNG CANVAS RENDERING V22 === */
         const mapCanvas = document.getElementById('mazeCanvas');
         const ctx = mapCanvas.getContext('2d');
         
@@ -1604,10 +1645,10 @@
         }
 
         /* PERAN PERMAINAN */
-        function promptTeacherPassword() { forceUnlockAudioOnUserClick(); openAnimatedModal('password-modal'); }
+        function promptTeacherPassword() { handleGlobalGestureUnlock(); openAnimatedModal('password-modal'); }
 
         function verifyTeacherPassword() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             const pass = document.getElementById('teacher-pass-input').value;
             if(pass === "0123") {
                 closeAnimatedModal('password-modal');
@@ -1616,7 +1657,7 @@
         }
 
         function selectRole(role) {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             currentRole = role;
             roomCode = document.getElementById('room-code-input').value.trim() || "MAZE2026";
             document.getElementById('room-code-val').innerText = roomCode;
@@ -1686,7 +1727,7 @@
 
         /* EKSEKUSI TRANSFORMASI ROBOT */
         function executeTransformation() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             if(typeof currentRole !== 'number') return;
             if(!gameState.started || gameState.paused) {
                 alert("⚠️ PERMAINAN DIPAUSE / BELUM DIMULAI OLEH GURU!");
@@ -1702,7 +1743,7 @@
                 const yc = parseFloat(document.getElementById('rot-b').value);
 
                 if (isNaN(xc) || isNaN(yc) || xc !== r.x || yc !== r.y) {
-                    alert("⚠️ TRANSFORMASI ROTASI GAGAL!\nPusat rotasi [a, b] harus diisi sesuai titik koordinat robot saat ini.");
+                    alert("⚠️ TRANSFORMASI ROTASI GAGAL! Pusat rotasi [a, b] harus diisi sesuai titik koordinat robot saat ini.");
                     return;
                 }
             }
@@ -1724,7 +1765,7 @@
 
                 if(!isValidHeadDir) {
                     const dirNames = { 0: "KANAN ➡️", 90: "ATAS ⬆️", 180: "KIRI ⬅️", 270: "BAWAH ⬇️" };
-                    alert("⚠️ PERGERAKAN HANYA BISA MAJU SEARAH KEPALA ROBOT!\nArah kepala saat ini: " + dirNames[r.angle] + ".\nLakukan ROTASI terlebih dahulu jika ingin berbelok!");
+                    alert("⚠️ PERGERAKAN HANYA BISA MAJU SEARAH KEPALA ROBOT! Arah kepala saat ini: " + dirNames[r.angle] + ". Lakukan ROTASI terlebih dahulu jika ingin berbelok!");
                     return;
                 }
 
@@ -1805,12 +1846,12 @@
 
                 const bh = isPurpleBlackHole(midX, midY);
                 if(!bh) {
-                    alert("❌ REFLEKSI GAGAL!\nRefleksi HANYA dapat digunakan untuk melompati Black Hole!\nPastikan garis cermin x=a atau y=b berada tepat di posisi Black Hole di depan robot.");
+                    alert("❌ REFLEKSI GAGAL! Refleksi HANYA dapat digunakan untuk melompati Black Hole! Pastikan garis cermin x=a atau y=b berada tepat di posisi Black Hole di depan robot.");
                     return;
                 }
 
                 if(!isWalkable(newX, newY)) {
-                    alert("❌ REFLEKSI GAGAL!\nTitik tujuan bayangan hasil refleksi menabrak dinding atau berada di luar peta labirin.");
+                    alert("❌ REFLEKSI GAGAL! Titik tujuan bayangan hasil refleksi menabrak dinding atau berada di luar peta labirin.");
                     return;
                 }
 
@@ -1833,7 +1874,7 @@
         }
 
         function submitDoorAnswer() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             const ans = document.getElementById('door-answer-input').value;
             const r = robotsData[currentRole];
             const doorId = r.currentDoorId || 1;
@@ -1875,7 +1916,7 @@
         }
 
         function submitBossAnswer() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             const r = robotsData[currentRole];
             const ans = document.getElementById('boss-answer-input').value;
             const keyString = questionBank.bossQuestions[r.bossQuestionIndex].a;
@@ -1961,7 +2002,7 @@
         }
 
         function teacherStartGame() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             gameState.started = true;
             gameState.paused = false;
             
@@ -1975,20 +2016,20 @@
                     }
                 }, 1000);
             }
-            playBGM(); updateGameStateUI();
+            playYouTubeBGM(); updateGameStateUI();
             broadcastState('GAME_STATE', gameState);
         }
 
         function teacherPauseGame() {
-            forceUnlockAudioOnUserClick();
+            handleGlobalGestureUnlock();
             if (!gameState.paused) {
                 gameState.pausedElapsedSeconds = getGameElapsedSeconds();
                 gameState.paused = true;
-                stopBGM();
+                stopYouTubeBGM();
             } else {
                 gameState.paused = false;
                 gameState.startTimestamp = Date.now() - ((gameState.pausedElapsedSeconds || 0) * 1000);
-                playBGM();
+                playYouTubeBGM();
             }
             updateGameStateUI();
             broadcastState('GAME_STATE', gameState);
