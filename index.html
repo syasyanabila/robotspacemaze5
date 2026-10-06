@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBOT SPACE MAZE: THE BATTERY HUNT (V21 REVISED)</title>
+    <!-- Firebase JS SDK (v8 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #05070e;
+            --panel-bg: rgba(12, 18, 34, 0.95);
+            --neon-blue: #00f0ff;
+            --neon-purple: #9d4edd;
+            --neon-green: #00ff66;
+            --neon-red: #ff0055;
+            --neon-yellow: #ffee00;
+            --neon-orange: #ff7700;
+            --text-light: #e0e6ed;
+            --grid-line: rgba(0, 240, 255, 0.2);
+            --wall-color: #1a2236;
+            --path-color: #0b1329;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-light); min-height: 100vh; overflow-x: hidden; background-image: radial-gradient(circle at 50% 50%, #0d1527 0%, #05070e 100%); }
+
+        /* HEADER & NAVBAR */
+        header {
+            background: linear-gradient(90deg, #090d1a, #141c33, #090d1a);
+            border-bottom: 2px solid var(--neon-blue);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
+        }
+        .logo { font-size: 1.25rem; font-weight: bold; color: var(--neon-blue); letter-spacing: 1.5px; text-shadow: 0 0 10px var(--neon-blue); display: flex; align-items: center; gap: 8px; }
+        .room-badge { background: var(--panel-bg); border: 1px solid var(--neon-purple); padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; box-shadow: 0 0 8px rgba(157, 78, 221, 0.4); }
+        .conn-badge { background: rgba(0, 255, 102, 0.15); border: 1px solid var(--neon-green); color: var(--neon-green); padding: 5px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: bold; }
+
+        /* OVERLAY PILIHAN PERAN */
+        #role-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(4, 6, 12, 0.97);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .role-card {
+            background: var(--panel-bg); border: 2px solid var(--neon-blue); border-radius: 14px;
+            padding: 24px; width: 90%; max-width: 530px; text-align: center;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.3), inset 0 0 15px rgba(0, 240, 255, 0.1);
+            animation: animSciFiFade 0.4s ease-out;
+            max-height: 95vh; overflow-y: auto;
+        }
+        .role-card h2 { color: var(--neon-blue); margin-bottom: 10px; font-size: 1.45rem; text-shadow: 0 0 8px var(--neon-blue); }
+        
+        .btn {
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            border: none; color: white; padding: 11px 18px; font-weight: bold;
+            border-radius: 8px; cursor: pointer; transition: 0.3s; margin: 5px 0; width: 100%; font-size: 0.95rem;
+            letter-spacing: 0.5px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 12px rgba(0, 240, 255, 0.25);
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 0 20px var(--neon-blue); filter: brightness(1.1); }
+        .btn-secondary { background: linear-gradient(135deg, #1e293b, #334155); border: 1px solid var(--neon-blue); }
+        .btn-warning { background: linear-gradient(135deg, #ff9900, #ff5500); }
+        .btn-danger { background: linear-gradient(135deg, #ff0055, #990033); }
+        .input-field {
+            width: 100%; padding: 10px; margin: 5px 0; background: #080d1a;
+            border: 1px solid var(--neon-blue); color: white; border-radius: 6px; text-align: center; font-size: 0.95rem;
+            box-shadow: inset 0 0 8px rgba(0, 240, 255, 0.15);
+        }
+
+        /* LAYOUT UTAMA */
+        .container { display: flex; gap: 18px; padding: 18px; max-width: 1600px; margin: 0 auto; }
+        .main-content {
+            flex: 0 0 660px; width: 660px; flex-shrink: 0;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .side-panel {
+            flex: 1; min-width: 0;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+
+        /* CANVAS PETA LABIRIN FUTURISTIK */
+        .map-wrapper {
+            background: var(--panel-bg); border: 2px solid var(--neon-blue);
+            border-radius: 14px; padding: 14px; text-align: center; position: relative;
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.25), inset 0 0 20px rgba(0, 240, 255, 0.05);
+        }
+        canvas { background: #03050a; border-radius: 10px; width: 630px; height: 630px; max-width: 100%; border: 1px solid rgba(0, 240, 255, 0.3); display: block; margin: 0 auto; }
+
+        /* PODIUM PANEL DI BAWAH PETA */
+        .podium-panel {
+            background: var(--panel-bg);
+            border: 2px solid var(--neon-yellow);
+            border-radius: 14px;
+            padding: 10px 12px;
+            box-shadow: 0 0 20px rgba(255, 238, 0, 0.25), inset 0 0 10px rgba(255, 238, 0, 0.05);
+        }
+        .podium-title {
+            font-size: 0.88rem;
+            font-weight: bold;
+            color: var(--neon-yellow);
+            text-align: center;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            text-shadow: 0 0 8px var(--neon-yellow);
+        }
+        .podium-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+        }
+        .podium-slot {
+            background: rgba(10, 16, 33, 0.9);
+            border: 1px dashed rgba(255, 238, 0, 0.3);
+            border-radius: 8px;
+            padding: 6px 2px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 86px;
+            transition: all 0.3s ease;
+        }
+        .podium-slot.filled {
+            border: 1px solid var(--neon-yellow);
+            box-shadow: 0 0 10px rgba(255, 238, 0, 0.3);
+            background: linear-gradient(180deg, rgba(20, 28, 48, 0.95), rgba(10, 16, 33, 0.95));
+            animation: animSciFiFade 0.4s ease-out;
+        }
+        .podium-rank {
+            font-size: 0.72rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-bottom: 3px;
+        }
+        .rank-1 { background: rgba(255, 238, 0, 0.25); color: #ffee00; border: 1px solid #ffee00; }
+        .rank-2 { background: rgba(224, 230, 237, 0.25); color: #e0e6ed; border: 1px solid #e0e6ed; }
+        .rank-3 { background: rgba(205, 127, 50, 0.25); color: #cd7f32; border: 1px solid #cd7f32; }
+        .rank-sub { background: rgba(0, 240, 255, 0.15); color: #00f0ff; border: 1px solid #00f0ff; }
+
+        .podium-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin: 2px 0;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .podium-bot-name {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #fff;
+        }
+        .podium-time {
+            font-size: 0.68rem;
+            font-family: monospace;
+            color: var(--neon-green);
+            margin-top: 2px;
+        }
+
+        /* PANEL KONTROL */
+        .panel {
+            background: var(--panel-bg); border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 12px; padding: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+        }
+        .panel-title { font-size: 1rem; color: var(--neon-blue); border-bottom: 1px solid var(--grid-line); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 6px var(--neon-blue); }
+
+        /* MATRIX INPUT GRID */
+        .matrix-container { display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .matrix-brackets {
+            border-left: 3px solid var(--neon-blue); border-right: 3px solid var(--neon-blue);
+            padding: 4px 8px; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            background: rgba(0, 240, 255, 0.05);
+        }
+
+        /* BADGE STATUS */
+        .status-badge {
+            display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase;
+        }
+        .status-MOVING { background: rgba(0, 255, 102, 0.2); color: var(--neon-green); border: 1px solid var(--neon-green); }
+        .status-SHOCKED { background: rgba(255, 0, 85, 0.2); color: var(--neon-red); border: 1px solid var(--neon-red); }
+        .status-DOOR { background: rgba(255, 0, 85, 0.3); color: var(--neon-red); border: 1px solid var(--neon-red); }
+        .status-BOSS { background: rgba(157, 78, 221, 0.3); color: var(--neon-purple); border: 1px solid var(--neon-purple); }
+        .status-FINISHED { background: rgba(0, 240, 255, 0.3); color: var(--neon-blue); border: 1px solid var(--neon-blue); }
+
+        /* DASHBOARD GURU GRID */
+        .teacher-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .robot-card { background: #0a1021; border: 1px solid var(--grid-line); border-radius: 8px; padding: 10px; min-width: 0; overflow: hidden; }
+
+        /* TAB NAVIGATION IN STUDENT PANEL */
+        .tab-group { display: flex; gap: 6px; margin-bottom: 10px; }
+        .tab-btn {
+            flex: 1; padding: 8px; background: #10172a; border: 1px solid var(--grid-line);
+            color: var(--text-light); border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.82rem; transition: 0.2s;
+        }
+        .tab-btn.active { background: var(--neon-blue); color: #000; border-color: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
+
+        /* MODAL POPUP BASE & KEYFRAME ANIMATIONS */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(4, 6, 12, 0.95); display: none; justify-content: center; align-items: center; z-index: 2000;
+        }
+        .modal-content {
+            background: var(--panel-bg); border: 2px solid var(--neon-red);
+            border-radius: 14px; padding: 22px; width: 90%; max-width: 600px; text-align: center;
+            box-shadow: 0 0 35px rgba(255, 0, 85, 0.4);
+            max-height: 90vh; overflow-y: auto; position: relative;
+        }
+
+        /* KEYFRAME ANIMATIONS POP-UP */
+        @keyframes animSciFiFade {
+            0% { opacity: 0; transform: scale(0.7) translateY(-20px); }
+            60% { transform: scale(1.03) translateY(5px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        @keyframes animWallCrash {
+            0% { transform: scale(0.4) rotate(-10deg); opacity: 0; }
+            25% { transform: scale(1.15) translate(-12px, 8px) rotate(6deg); }
+            50% { transform: translate(12px, -8px) rotate(-6deg); }
+            75% { transform: translate(-6px, 4px); }
+            100% { transform: scale(1) translate(0) rotate(0deg); opacity: 1; box-shadow: 0 0 35px var(--neon-red); }
+        }
+
+        @keyframes animShockElectric {
+            0% { transform: scale(0.5); opacity: 0; }
+            20% { transform: scale(1.08) rotate(4deg); filter: brightness(2); background: rgba(255, 0, 85, 0.85); }
+            40% { transform: scale(0.92) rotate(-4deg); filter: brightness(0.6); }
+            60% { transform: scale(1.05) rotate(2deg); filter: brightness(2.2); box-shadow: 0 0 45px var(--neon-yellow); }
+            80% { transform: scale(0.98); }
+            100% { transform: scale(1); opacity: 1; filter: brightness(1); box-shadow: 0 0 25px var(--neon-yellow); }
+        }
+
+        @keyframes animDoorOpen {
+            0% { transform: scale(0.3) rotateX(90deg); opacity: 0; }
+            60% { transform: scale(1.06) rotateX(-10deg); opacity: 1; box-shadow: 0 0 50px var(--neon-green); }
+            100% { transform: scale(1) rotateX(0deg); box-shadow: 0 0 25px var(--neon-green); }
+        }
+
+        @keyframes animBlackHoleVortex {
+            0% { transform: scale(1.4) rotate(0deg); opacity: 0; }
+            50% { transform: scale(0.85) rotate(360deg); opacity: 1; box-shadow: 0 0 60px var(--neon-purple); }
+            100% { transform: scale(1) rotate(720deg); box-shadow: 0 0 30px var(--neon-purple); }
+        }
+
+        @keyframes animBossAttack {
+            0% { transform: scale(0.5) translateY(-40px); opacity: 0; }
+            30% { transform: scale(1.1) translateY(10px); box-shadow: 0 0 45px var(--neon-red); }
+            50% { transform: translate(-8px, 8px) rotate(-3deg); }
+            70% { transform: translate(8px, -8px) rotate(3deg); }
+            100% { transform: scale(1) translate(0); opacity: 1; box-shadow: 0 0 25px var(--neon-red); }
+        }
+
+        @keyframes animBossHit {
+            0% { transform: scale(0.4); opacity: 0; filter: contrast(2); }
+            50% { transform: scale(1.12); box-shadow: 0 0 55px var(--neon-blue); }
+            100% { transform: scale(1); opacity: 1; box-shadow: 0 0 25px var(--neon-blue); }
+        }
+
+        @keyframes winnerTreasureBounce {
+            0% { opacity: 0; transform: scale(0.3) translateY(100px); }
+            50% { transform: scale(1.1) translateY(-10px); }
+            70% { transform: scale(0.95) translateY(5px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); box-shadow: 0 0 50px rgba(255, 238, 0, 0.9); }
+        }
+
+        @keyframes animReflectionFlash {
+            0% { transform: scale(0.2) rotate(-180deg); opacity: 0; filter: hue-rotate(0deg) brightness(2); }
+            50% { transform: scale(1.12) rotate(10deg); opacity: 1; filter: hue-rotate(180deg) brightness(1.5); box-shadow: 0 0 50px var(--neon-purple); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; filter: hue-rotate(360deg) brightness(1); box-shadow: 0 0 30px var(--neon-blue); }
+        }
+
+        @keyframes animBossEntrance {
+            0% { transform: scale(0.2) translateY(-100px); opacity: 0; filter: grayscale(1); }
+            60% { transform: scale(1.15) translateY(15px); opacity: 1; box-shadow: 0 0 60px var(--neon-purple); }
+            80% { transform: scale(0.95) translateY(-5px); }
+            100% { transform: scale(1) translateY(0); box-shadow: 0 0 35px var(--neon-red); }
+        }
+
+        @keyframes animBossDefeatFixed {
+            0% { transform: scale(0.4) rotate(-15deg); opacity: 0; filter: brightness(3); }
+            30% { transform: scale(1.15) rotate(5deg); opacity: 1; filter: brightness(2) drop-shadow(0 0 30px var(--neon-yellow)); }
+            60% { transform: scale(0.95) rotate(-2deg); filter: brightness(1.2); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; filter: brightness(1); box-shadow: 0 0 35px var(--neon-yellow); }
+        }
+
+        @keyframes animAllFinishedPop {
+            0% { transform: scale(0.3) rotate(-5deg); opacity: 0; }
+            50% { transform: scale(1.08) rotate(3deg); opacity: 1; box-shadow: 0 0 60px var(--neon-green); }
+            100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 40px var(--neon-yellow); }
+        }
+
+        .anim-scifi { animation: animSciFiFade 0.35s ease-out; }
+        .anim-wall-crash { animation: animWallCrash 0.45s ease-out; }
+        .anim-shock { animation: animShockElectric 0.5s ease-in-out; }
+        .anim-door-open { animation: animDoorOpen 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .anim-blackhole { animation: animBlackHoleVortex 0.6s ease-in-out; }
+        .anim-boss-attack { animation: animBossAttack 0.45s ease-out; }
+        .anim-boss-hit { animation: animBossHit 0.45s ease-out; }
+        .anim-winner { animation: winnerTreasureBounce 0.6s ease-out; }
+        .anim-reflection { animation: animReflectionFlash 0.55s ease-out; }
+        .anim-boss-entrance { animation: animBossEntrance 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .anim-boss-defeat { animation: animBossDefeatFixed 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .anim-all-finished { animation: animAllFinishedPop 0.65s ease-out; }
+
+        .sound-btn {
+            background: rgba(0, 240, 255, 0.12); border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.8rem; font-weight: bold;
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.2); transition: 0.2s;
+        }
+        .sound-btn:hover { background: rgba(0, 240, 255, 0.25); box-shadow: 0 0 15px var(--neon-blue); }
+
+        .history-table {
+            width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8rem; text-align: left;
+        }
+        .history-table th, .history-table td {
+            border: 1px solid var(--grid-line); padding: 6px 8px;
+        }
+        .history-table th { background: #0e172a; color: var(--neon-blue); }
+    </style>
+</head>
+<body onclick="forceUnlockAudioOnUserClick()" ontouchstart="forceUnlockAudioOnUserClick()">
+
+    <!-- YOUTUBE IFRAME WITH AUTOPLAY PERMISSIONS -->
+    <div id="youtube-audio-player-container" style="position: fixed; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; overflow: hidden; top: -100px; left: -100px; z-index: -999;">
+        <iframe id="yt-bgm-iframe" src="https://www.youtube.com/embed/hrgzWEgCCFg?enablejsapi=1&autoplay=1&loop=1&playlist=hrgzWEgCCFg&controls=0&playsinline=1" allow="autoplay; encrypted-media" style="width:1px; height:1px; border:none;"></iframe>
+    </div>
+
+    <!-- NAVBAR HEADER -->
+    <header>
+        <div class="logo">🤖 ROBOT SPACE MAZE: THE BATTERY HUNT</div>
+        <div id="role-display" style="font-weight: bold; color: var(--neon-yellow);">Pilih Peran Permainan</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="conn-badge" id="conn-status-display">🔥 FIREBASE: TERHUBUNG</div>
+            <button class="sound-btn" id="main-sound-toggle-btn" onclick="toggleAudio()"><span id="sound-icon">🔊</span> BACKSOUND: LOUD ON</button>
+            <div class="room-badge" id="room-info">ROOM: <span id="room-code-val">----</span></div>
+        </div>
+    </header>
+
+    <!-- OVERLAY PILIHAN PERAN -->
+    <div id="role-overlay">
+        <div class="role-card">
+            <h2>🚀 PILIH PERAN PERMAINAN</h2>
+            
+            <div style="background: rgba(255, 238, 0, 0.12); border: 1px solid var(--neon-yellow); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.82rem; color: var(--neon-yellow);">
+                🎵 <b>SUARA / BACKSOUND PERMAINAN:</b><br>
+                <button class="btn" style="background: linear-gradient(45deg, #ffee00, #ff8800); color: #000; font-size: 0.88rem; padding: 6px 12px; margin-top: 5px;" onclick="userExplicitAudioTest()">🔊 KLIK UNTUK AKTIFKAN SUARA LOUD ON</button>
+                <div id="audio-status-msg" style="margin-top: 4px; font-size: 0.75rem; color: #a0aec0;">Status: Menunggu Klik Pengguna...</div>
+            </div>
+
+            <p style="margin-bottom: 6px; color: #a0aec0; font-size: 0.85rem;">Masukkan Kode Ruangan untuk Sinkronisasi Lintas Gadget:</p>
+            <input type="text" id="room-code-input" class="input-field" value="MAZE2026" placeholder="KODE RUANGAN">
+            
+            <div style="background: rgba(0, 240, 255, 0.08); padding: 8px; border-radius: 6px; border: 1px solid var(--grid-line); margin: 8px 0; text-align: left;">
+                <label style="font-size: 0.75rem; color: var(--neon-yellow); font-weight: bold;">🔥 Firebase Database URL (Atau Biarkan Default):</label>
+                <input type="text" id="firebase-url-input" class="input-field" style="font-size:0.78rem; text-align:left;" value="https://robotspacemaze2-default-rtdb.firebaseio.com/" placeholder="https://robotspacemaze2-default-rtdb.firebaseio.com/">
+            </div>
+
+            <button class="btn" onclick="promptTeacherPassword()">👨‍🏫 PERAN GURU (MISSION CONTROL)</button>
+            <hr style="border-color: var(--grid-line); margin: 10px 0;">
+            <p style="color: var(--neon-blue); font-weight: bold; margin-bottom: 6px; font-size: 0.85rem;">PILIH TIM ROBOT MURID (1-6):</p>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                <button class="btn btn-secondary" onclick="selectRole(1)">🤖 ROBOT 1</button>
+                <button class="btn btn-secondary" onclick="selectRole(2)">🤖 ROBOT 2</button>
+                <button class="btn btn-secondary" onclick="selectRole(3)">🤖 ROBOT 3</button>
+                <button class="btn btn-secondary" onclick="selectRole(4)">🤖 ROBOT 4</button>
+                <button class="btn btn-secondary" onclick="selectRole(5)">🤖 ROBOT 5</button>
+                <button class="btn btn-secondary" onclick="selectRole(6)">🤖 ROBOT 6</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PASSWORD GURU -->
+    <div class="modal" id="password-modal">
+        <div class="modal-content anim-scifi" style="max-width: 380px; border-color: var(--neon-blue);">
+            <h3 style="color: var(--neon-blue); margin-bottom: 8px;">🔐 OTENTIKASI GURU</h3>
+            <p style="font-size: 0.85rem; color: #cbd5e0; margin-bottom: 10px;">Masukkan Password Akses Panel Guru:</p>
+            <input type="password" id="teacher-pass-input" class="input-field" placeholder="Masukkan Password...">
+            <button class="btn" onclick="verifyTeacherPassword()">MASUK PANEL GURU</button>
+            <button class="btn btn-secondary" onclick="closeAnimatedModal('password-modal')">BATAL</button>
+        </div>
+    </div>
+
+    <!-- TAMPILAN UTAMA GAME -->
+    <div class="container" id="app-container" style="display: none;">
+        
+        <!-- SIDE KIRI: PETA LABIRIN DENAH & PODIUM PEMENANG -->
+        <div class="main-content">
+            <div class="map-wrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="color: var(--neon-blue); font-weight: bold; font-size: 0.9rem;">TACTICAL SHIP LABYRINTH (-10 s.d. 10)</span>
+                    <span id="coord-info" style="color: var(--neon-yellow); font-family: monospace; font-size: 0.85rem;">POSISI: P(-10, 10) | ARAH: KANAN ➡️</span>
+                </div>
+                <canvas id="mazeCanvas" width="630" height="630"></canvas>
+            </div>
+
+            <!-- PODIUM PANEL DI BAWAH PETA -->
+            <div class="podium-panel">
+                <div class="podium-title">🏆 PODIUM PEMENANG LABIRIN</div>
+                <div class="podium-grid" id="podium-grid-container">
+                    <!-- 6 Slot Podium Robot -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SIDE KANAN: PANEL KONTROL SESUAI PERAN -->
+        <div class="side-panel">
+            
+            <!-- PANEL UNTUK MURID: KONTROL MATRIKS TRANSFORMASI -->
+            <div class="panel" id="student-control-panel">
+                <div class="panel-title">🕹 MOVE ROBOT (NAVIGASI MATRIKS)</div>
+                
+                <div class="tab-group">
+                    <button class="tab-btn active" id="tab-translasi" onclick="switchTransformTab('translasi')">➡ TRANSLASI</button>
+                    <button class="tab-btn" id="tab-rotasi" onclick="switchTransformTab('rotasi')">🔄 ROTASI</button>
+                    <button class="tab-btn" id="tab-refleksi" onclick="switchTransformTab('refleksi')">✨ REFLEKSI</button>
+                </div>
+
+                <!-- SUB-PANEL 1: TRANSLASI -->
+                <div id="subpanel-translasi">
+                    <p style="font-size: 0.78rem; color: #a0aec0; margin-bottom: 6px;">
+                        <b>TRANSLASI MAJU (SEARAH KEPALA ROBOT)</b><br>
+                        Arah kepala saat ini: <span id="current-head-dir" style="color: var(--neon-yellow); font-weight: bold;">KANAN ➡️</span>.<br>
+                        <i style="color: var(--neon-red);">⚠️ Jika jalur translasi melewati Black Hole, robot akan terserap kembali ke titik Start (-10, 10)! Gunakan REFLEKSI untuk melompati Black Hole.</i>
+                    </p>
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 0.82rem; color: var(--neon-blue); font-weight: bold;">Vektor Translasi T = [Tx, Ty]:</label>
+                        <div style="display: flex; gap: 8px; margin-top: 4px;">
+                            <input type="number" id="v-tx" class="input-field" value="1" placeholder="Tx">
+                            <input type="number" id="v-ty" class="input-field" value="0" placeholder="Ty">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-PANEL 2: ROTASI -->
+                <div id="subpanel-rotasi" style="display: none;">
+                    <p style="font-size: 0.78rem; color: #a0aec0; margin-bottom: 6px;">
+                        <b>ROTASI TERHADAP PUSAT [a, b]</b><br>
+                        Memutar arah kepala/posisi robot. Masukkan matriks rotasi M dan pusat [a, b].<br>
+                        <i style="color: var(--neon-yellow);">Catatan: Rotasi hanya dapat dilakukan jika pusat [a, b] diisi titik koordinat robot saat ini!</i>
+                    </p>
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 0.82rem; color: var(--neon-blue); font-weight: bold;">Pusat Rotasi [a, b]:</label>
+                        <div style="display: flex; gap: 8px; margin-top: 2px;">
+                            <input type="number" id="rot-a" class="input-field" value="0" placeholder="a">
+                            <input type="number" id="rot-b" class="input-field" value="0" placeholder="b">
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 0.82rem; color: var(--neon-blue); font-weight: bold;">Matriks Rotasi M (2x2):</label>
+                        <div class="matrix-container" style="margin-top: 3px;">
+                            <div class="matrix-brackets">
+                                <input type="number" id="m-a" class="input-field" value="0" style="width: 42px;">
+                                <input type="number" id="m-b" class="input-field" value="-1" style="width: 42px;">
+                                <input type="number" id="m-c" class="input-field" value="1" style="width: 42px;">
+                                <input type="number" id="m-d" class="input-field" value="0" style="width: 42px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-PANEL 3: REFLEKSI -->
+                <div id="subpanel-refleksi" style="display: none;">
+                    <p style="font-size: 0.78rem; color: #a0aec0; margin-bottom: 6px;">
+                        <b>REFLEKSI GARIS (KHUSUS MELOMPATI BLACK HOLE)</b><br>
+                        <span style="color: var(--neon-green); font-weight: bold;">Refleksi HANYA dapat digunakan untuk melompati Black Hole!</span> Garis cermin x=a atau y=b harus berada tepat di atas titik Black Hole.
+                    </p>
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 0.82rem; color: var(--neon-blue); font-weight: bold;">Pilih Garis Cermin:</label>
+                        <select id="ref-type" class="input-field" style="margin-top: 3px;">
+                            <option value="x">Garis Vertikal x = a</option>
+                            <option value="y">Garis Horizontal y = b</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 0.82rem; color: var(--neon-blue); font-weight: bold;">Nilai Cermin (a atau b):</label>
+                        <input type="number" id="ref-val" class="input-field" value="0" placeholder="Nilai a atau b">
+                    </div>
+                </div>
+
+                <!-- PREVIEW HASIL BAYANGAN -->
+                <div style="background: #080d1a; padding: 8px; border-radius: 6px; border: 1px solid var(--grid-line); margin-bottom: 10px;">
+                    <div style="font-size: 0.78rem; color: #a0aec0;">HASIL BAYANGAN TITIK:</div>
+                    <div id="preview-target" style="font-size: 0.95rem; color: var(--neon-green); font-weight: bold;">P'(x', y') = (?, ?)</div>
+                </div>
+
+                <div style="display: flex; gap: 6px;">
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="calculatePreview()">🧮 HITUNG</button>
+                    <button class="btn" style="flex: 2;" onclick="executeTransformation()">🚀 GERAKKAN ROBOT</button>
+                </div>
+            </div>
+
+            <!-- PANEL UNTUK GURU -->
+            <div class="panel" id="teacher-dashboard-panel" style="display: none;">
+                <div class="panel-title">👨‍🏫 TEACHER MISSION CONTROL</div>
+                
+                <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                    <button class="btn" style="background: var(--neon-green); color: #000;" id="btn-start-game" onclick="teacherStartGame()">▶ MULAI PERMAINAN</button>
+                    <button class="btn btn-warning" id="btn-pause-game" onclick="teacherPauseGame()">⏸ PAUSE</button>
+                </div>
+
+                <div style="background: #080d1a; padding: 6px; border-radius: 6px; text-align: center; border: 1px solid var(--grid-line); margin-bottom: 10px; font-size: 0.85rem;">
+                    STATUS: <span id="game-status-text" style="color: var(--neon-yellow); font-weight: bold;">BELUM DIMULAI</span> | WAKTU: <span id="game-timer" style="font-family: monospace;">00.00</span>
+                </div>
+
+                <div class="teacher-grid" id="teacher-robots-grid">
+                    <!-- Cards status 6 robot -->
+                </div>
+
+                <hr style="border-color: var(--grid-line); margin: 10px 0;">
+                <button class="btn btn-secondary" onclick="openBankSoalModal()">📝 BANK SOAL PER DOOR & BOSS</button>
+                <button class="btn btn-danger" onclick="resetGameAll()">🔄 RESET PERMAINAN ALL</button>
+            </div>
+
+            <!-- PANEL KLASEMEN LEADERBOARD -->
+            <div class="panel">
+                <div class="panel-title">🏆 KLASEMEN PEMENANG</div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;" id="leaderboard-table">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--neon-blue); text-align: left; color: var(--neon-blue);">
+                            <th style="padding: 4px;">POS</th>
+                            <th>ROBOT</th>
+                            <th>FINISH (hh.mm.ss)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <tr><td colspan="3" style="text-align: center; color: #666; padding: 6px;">Belum Ada Robot Finish</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL POPUP ANIMASI KLASEMEN PEMENANG -->
+    <div class="modal" id="all-finished-modal">
+        <div class="modal-content anim-all-finished" style="border-color: var(--neon-yellow); max-width: 620px; background: linear-gradient(135deg, #120e03, #211a08);">
+            <div style="font-size: 4.5rem; margin-bottom: 5px;">🏆✨🎆</div>
+            <h1 style="color: var(--neon-yellow); text-shadow: 0 0 25px var(--neon-yellow); font-size: 1.8rem; margin-bottom: 4px;">
+                GRAND FINALE: ALL PLAYERS FINISHED!
+            </h1>
+            <h3 style="color: var(--neon-green); margin-bottom: 12px;">🎉 KLASEMEN AKHIR PETUALANGAN LABIRIN</h3>
+            
+            <div style="background: rgba(0,0,0,0.6); padding: 12px; border-radius: 10px; border: 1px solid var(--neon-yellow); margin-bottom: 15px;">
+                <p style="color: #e0e6ed; font-size: 0.88rem; margin-bottom: 10px;">
+                    Seluruh Tim Robot telah berhasil menyelesaikan tantangan labirin dan mengalahkan Peneliti!
+                </p>
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="all-finished-table">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--neon-yellow); color: var(--neon-yellow); text-align: center;">
+                            <th style="padding: 6px;">JUARA</th>
+                            <th>TIM ROBOT</th>
+                            <th>WAKTU FINISH (hh.mm.ss)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="all-finished-tbody">
+                        <!-- Full ranking rows -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button class="btn" onclick="closeAnimatedModal('all-finished-modal')" style="background: linear-gradient(45deg, #ffee00, #ff8800); color: #000; font-size: 1.05rem;">
+                👑 TUTUP KLASEMEN AKHIR
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL POPUP REFLEKSI BERHASIL -->
+    <div class="modal" id="reflection-success-modal">
+        <div class="modal-content anim-reflection" style="border-color: var(--neon-purple); background: linear-gradient(135deg, rgba(16,22,38,0.98), rgba(20,10,40,0.98));">
+            <div style="font-size: 3.8rem; margin-bottom: 6px;">✨🌌🪞</div>
+            <h2 style="color: var(--neon-purple); text-shadow: 0 0 18px var(--neon-purple);">REFLECTION SUCCESSFUL!</h2>
+            <h3 style="color: var(--neon-blue); margin-top: 4px;">WARP PORTAL UNLOCKED!</h3>
+            <p style="margin: 12px 0; color: #cbd5e0; font-size: 0.92rem;">
+                Robot berhasil melakukan refleksi geometri melintasi cermin dan melompati Black Hole secara instan!
+            </p>
+            <button class="btn" style="background: linear-gradient(45deg, var(--neon-purple), var(--neon-blue)); font-size: 1rem;" onclick="closeAnimatedModal('reflection-success-modal')">🚀 LANJUTKAN PETUALANGAN</button>
+        </div>
+    </div>
+
+    <!-- MODAL ANIMASI BOSS ENTRANCE -->
+    <div class="modal" id="boss-entrance-modal">
+        <div class="modal-content anim-boss-entrance" style="border-color: var(--neon-purple); background: linear-gradient(135deg, #10061a, #1a0826);">
+            <div style="font-size: 4rem; margin-bottom: 6px;">👨‍🔬⚡🌌</div>
+            <h1 style="color: var(--neon-red); text-shadow: 0 0 20px var(--neon-red); font-size: 1.8rem;">FINAL BOSS ENCOUNTER!</h1>
+            <h3 style="color: var(--neon-yellow); margin: 6px 0;">THE RESEARCHER APPEARS!</h3>
+            <p style="margin: 12px 0; color: #e0e6ed; font-size: 0.92rem;">
+                "Kalian telah berhasil menembus seluruh labirin! Tapi untuk mengambil Energy Treasure, jawab 5 Tantangan HOTS Geometri milikku!"
+            </p>
+            <button class="btn" style="background: linear-gradient(45deg, var(--neon-red), var(--neon-purple)); font-size: 1.05rem;" onclick="closeAnimatedModal('boss-entrance-modal'); openBossModal();">⚔️ MULAI BOSS BATTLE</button>
+        </div>
+    </div>
+
+    <!-- MODAL ANIMASI BOSS DEFEATED -->
+    <div class="modal" id="boss-defeat-modal">
+        <div class="modal-content anim-boss-defeat" style="border-color: var(--neon-yellow); background: linear-gradient(135deg, #1a0808, #2a1000);">
+            <div style="font-size: 4.2rem; margin-bottom: 6px;">💥👨‍🔬⚡</div>
+            <h1 style="color: var(--neon-yellow); text-shadow: 0 0 25px var(--neon-yellow); font-size: 1.9rem;">RESEARCHER DEFEATED!</h1>
+            <h3 style="color: var(--neon-green); margin: 6px 0;">SHIELD CRASHED & OVERPOWERED!</h3>
+            <p style="margin: 12px 0; color: #cbd5e0; font-size: 0.95rem;">
+                Pertahanan Peneliti hancur total oleh serangan laser akurasi geometri robot Anda!
+            </p>
+            <button class="btn" style="background: linear-gradient(45deg, #ffee00, #ff8800); color: #000; font-size: 1.05rem;" onclick="showWinnerModalFinal()">💎 AMBIL PETI HARTA ENERGI</button>
+        </div>
+    </div>
+
+    <!-- MODAL DETAIL RIWAYAT -->
+    <div class="modal" id="history-modal">
+        <div class="modal-content anim-scifi" style="border-color: var(--neon-blue); max-width: 650px;">
+            <h2 style="color: var(--neon-blue); margin-bottom: 6px;" id="history-modal-title">📜 RIWAYAT TANTANGAN ROBOT</h2>
+            <div id="history-summary-stats" style="background: #080d1a; padding: 10px; border-radius: 8px; border: 1px solid var(--grid-line); margin-bottom: 10px; font-size: 0.88rem; text-align: left;">
+                <!-- Stats ringkasan -->
+            </div>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>NO</th>
+                            <th>WAKTU</th>
+                            <th>TIPE TANTANGAN</th>
+                            <th>DETAIL / EVENT</th>
+                            <th>HASIL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <!-- History rows -->
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 14px;" onclick="closeAnimatedModal('history-modal')">TUTUP RIWAYAT</button>
+        </div>
+    </div>
+
+    <!-- MODAL POPUP ANIMASI STANDARD -->
+    <div class="modal" id="wall-crash-modal">
+        <div class="modal-content anim-wall-crash" style="border-color: var(--neon-red);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">💥🤖🧱</div>
+            <h2 style="color: var(--neon-red); text-shadow: 0 0 12px var(--neon-red);">CRASH! MENABRAK DINDING!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;">
+                Robot menabrak dinding abu-abu labirin! Gerakan dibatalkan.
+            </p>
+            <button class="btn btn-danger" onclick="closeAnimatedModal('wall-crash-modal')">💥 PERBAIKI KONTROL</button>
+        </div>
+    </div>
+
+    <div class="modal" id="shock-modal">
+        <div class="modal-content anim-shock" style="border-color: var(--neon-yellow);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">⚡🤖⚡</div>
+            <h2 style="color: var(--neon-yellow); text-shadow: 0 0 15px var(--neon-yellow);">ELECTRIC SHOCK! TERSETURUM!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;">
+                Jawaban Pintu Keamanan Salah! Robot terkena kejutan listrik tegangan tinggi.
+            </p>
+            <button class="btn btn-warning" onclick="closeAnimatedModal('shock-modal'); openDoorModal(robotsData[currentRole].currentDoorId);">⚡ COBA JAWAB LAGI</button>
+        </div>
+    </div>
+
+    <div class="modal" id="door-open-modal">
+        <div class="modal-content anim-door-open" style="border-color: var(--neon-green);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">🔓✨🚪</div>
+            <h2 style="color: var(--neon-green); text-shadow: 0 0 15px var(--neon-green);">ACCESS GRANTED! PINTU TERBUKA!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;">
+                Jawaban Benar! Energy Security Door telah terbuka.
+            </p>
+            <button class="btn" style="background: var(--neon-green); color: #000;" onclick="closeAnimatedModal('door-open-modal')">🚀 LANJUTKAN LABIRIN</button>
+        </div>
+    </div>
+
+    <div class="modal" id="blackhole-modal">
+        <div class="modal-content anim-blackhole" style="border-color: var(--neon-purple);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">🌀🌌🤖</div>
+            <h2 style="color: var(--neon-purple); text-shadow: 0 0 15px var(--neon-purple);">BLACK HOLE ABSORBED!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;" id="blackhole-text">
+                Robot melintasi Black Hole dan terserap! Dikembangkan ke titik Start (-10, 10).
+            </p>
+            <button class="btn" style="background: var(--neon-purple);" onclick="closeAnimatedModal('blackhole-modal')">🌀 KEMBALI KE START</button>
+        </div>
+    </div>
+
+    <div class="modal" id="boss-attack-modal">
+        <div class="modal-content anim-boss-attack" style="border-color: var(--neon-red);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">👨‍🔬⚡💥</div>
+            <h2 style="color: var(--neon-red); text-shadow: 0 0 15px var(--neon-red);">RESEARCHER COUNTERATTACK!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;">
+                Jawaban Salah! Peneliti melancarkan serangan gelombang plasma!
+            </p>
+            <button class="btn btn-danger" onclick="closeAnimatedModal('boss-attack-modal'); openBossModal();">🛡️ BERTAHAN & SERANG BALIK</button>
+        </div>
+    </div>
+
+    <div class="modal" id="boss-hit-modal">
+        <div class="modal-content anim-boss-hit" style="border-color: var(--neon-blue);">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">🚀💥🎯</div>
+            <h2 style="color: var(--neon-blue); text-shadow: 0 0 15px var(--neon-blue);">DIRECT HIT! PENELITI DISERANG!</h2>
+            <p style="margin: 10px 0; color: #cbd5e0; font-size: 0.9rem;">
+                Jawaban Tepat! Serangan laser robot menembus pertahanan Peneliti!
+            </p>
+            <button class="btn" style="background: var(--neon-blue); color:#000;" onclick="closeAnimatedModal('boss-hit-modal'); openBossModal();">⚔️ LANJUTKAN SOAL BOSS</button>
+        </div>
+    </div>
+
+    <div class="modal" id="winner-modal">
+        <div class="modal-content anim-winner" style="border-color: var(--neon-yellow); max-width: 550px;">
+            <div style="font-size: 3.8rem; margin-bottom: 5px;">💎🔋✨</div>
+            <h1 id="winner-rank-title" style="color: var(--neon-yellow); text-shadow: 0 0 15px var(--neon-yellow); margin-bottom: 6px;">
+                🏆 1st WINNER!
+            </h1>
+            <h3 style="color: var(--neon-green); margin-bottom: 12px;">🎉 ENERGY TREASURE UNLOCKED!</h3>
+            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px solid var(--neon-yellow); margin-bottom: 15px;">
+                <p style="color: #e0e6ed; font-size: 0.95rem; margin-bottom: 8px;">
+                    Peneliti telah dikalahkan! Robot Anda berhasil membuka peti harta dan mengumpulkan seluruh Baterai Energi!
+                </p>
+                <div id="winner-details" style="font-weight: bold; color: var(--neon-blue); font-size: 1.05rem;">
+                    [ROBOT 1 - FINISH TIME: 00.02.15]
+                </div>
+            </div>
+            <button class="btn" onclick="closeAnimatedModal('winner-modal')" style="background: linear-gradient(45deg, #ffee00, #ff8800); color: #000;">
+                🚀 LIHAT KLASEMEN AKHIR
+            </button>
+        </div>
+    </div>
+
+    <div class="modal" id="door-modal">
+        <div class="modal-content anim-scifi">
+            <h2 style="color: var(--neon-red); margin-bottom: 8px;" id="door-modal-title">🚪 ENERGY SECURITY DOOR #1</h2>
+            <p style="color: #cbd5e0; margin-bottom: 6px; font-size: 0.85rem;">Pintu Keamanan Terkunci! Selesaikan Tantangan Transformasi Geometri Ini:</p>
+            <div id="door-question-text" style="background: #080d1a; padding: 10px; border-radius: 8px; border: 1px solid var(--neon-red); font-size: 0.95rem; margin-bottom: 8px;">
+                [SOAL DOOR]
+            </div>
+            <input type="text" id="door-answer-input" class="input-field" placeholder="tulis jawaban...">
+            <button class="btn" onclick="submitDoorAnswer()" style="background: var(--neon-red); margin-top: 8px;">🔓 BUKA PINTU KEAMANAN</button>
+        </div>
+    </div>
+
+    <div class="modal" id="boss-modal">
+        <div class="modal-content anim-scifi" style="border-color: var(--neon-purple);">
+            <h2 style="color: var(--neon-purple); margin-bottom: 8px;">👨‍🔬 FINAL BOSS: THE RESEARCHER</h2>
+            <p style="color: #cbd5e0; margin-bottom: 10px; font-size: 0.85rem;">"Buktikan Penguasaan Transformasi Geometri Anda Untuk Membuka Energy Treasure!"</p>
+            <div style="font-weight: bold; color: var(--neon-yellow); margin-bottom: 6px;" id="boss-q-num">BOSS QUESTION 1/5</div>
+            <div id="boss-question-text" style="background: #080d1a; padding: 10px; border-radius: 8px; border: 1px solid var(--neon-purple); font-size: 0.95rem; margin-bottom: 8px;">
+                [SOAL HOTS BOSS BATTLE]
+            </div>
+            <input type="text" id="boss-answer-input" class="input-field" placeholder="tulis jawaban...">
+            <button class="btn" onclick="submitBossAnswer()" style="background: var(--neon-purple); margin-top: 8px;">⚔ SERANG PENELITI (DIRECT HIT)</button>
+        </div>
+    </div>
+
+    <!-- BANK SOAL MODAL -->
+    <div class="modal" id="bank-soal-modal">
+        <div class="modal-content anim-scifi" style="border-color: var(--neon-blue); text-align: left;">
+            <h2 style="color: var(--neon-blue); margin-bottom: 6px; text-align: center;">📝 BANK SOAL PER DOOR & 5 BOSS HOTS</h2>
+            <p style="font-size:0.78rem; color:var(--neon-yellow); margin-bottom:10px; text-align:center;">
+                💡 <b>Catatan Multi Kunci Jawaban:</b> Gunakan tanda karakter <code>|</code> untuk memasukkan beberapa variasi jawaban yang sama.
+            </p>
+            <h4 style="color: var(--neon-red); margin-top: 8px;">1. PINTU KEAMANAN (ENERGY SECURITY DOOR #1 s.d. #18)</h4>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 0.8rem; color: #a0aec0;">Pilih Nomor Door Untuk Di-edit:</label>
+                <select id="door-select-dropdown" class="input-field" onchange="loadSelectedDoorQuestion()"></select>
+            </div>
+            <div style="background: #080d1a; padding: 10px; border-radius: 6px; border: 1px solid var(--grid-line);">
+                <label style="font-size: 0.8rem; color: var(--neon-yellow);">Pertanyaan Soal Door Terpilih:</label>
+                <input type="text" id="edit-door-q" class="input-field" style="text-align: left;" value="">
+                <label style="font-size: 0.8rem; color: var(--neon-green); margin-top: 4px; display: block;">Kunci Jawaban (Pisahkan variasi dengan |):</label>
+                <input type="text" id="edit-door-a" class="input-field" style="text-align: left;" value="">
+                <button class="btn btn-secondary" onclick="saveCurrentDoorQuestion()" style="margin-top: 6px;">💾 SIMPAN SOAL DOOR INI</button>
+            </div>
+
+            <h4 style="color: var(--neon-purple); margin-top: 12px;">2. FINAL BOSS BATTLE (5 SOAL HOTS)</h4>
+            <div style="border: 1px solid var(--grid-line); padding: 8px; border-radius: 6px; margin-top: 4px;">
+                <b>Soal Boss 1:</b>
+                <input type="text" id="edit-boss-q1" class="input-field" style="text-align: left;" value="">
+                <input type="text" id="edit-boss-a1" class="input-field" style="text-align: left;" value="">
+            </div>
+            <div style="border: 1px solid var(--grid-line); padding: 8px; border-radius: 6px; margin-top: 4px;">
+                <b>Soal Boss 2:</b>
+                <input type="text" id="edit-boss-q2" class="input-field" style="text-align: left;" value="">
+                <input type="text" id="edit-boss-a2" class="input-field" style="text-align: left;" value="">
+            </div>
+            <div style="border: 1px solid var(--grid-line); padding: 8px; border-radius: 6px; margin-top: 4px;">
+                <b>Soal Boss 3:</b>
+                <input type="text" id="edit-boss-q3" class="input-field" style="text-align: left;" value="">
+                <input type="text" id="edit-boss-a3" class="input-field" style="text-align: left;" value="">
+            </div>
+            <div style="border: 1px solid var(--grid-line); padding: 8px; border-radius: 6px; margin-top: 4px;">
+                <b>Soal Boss 4:</b>
+                <input type="text" id="edit-boss-q4" class="input-field" style="text-align: left;" value="">
+                <input type="text" id="edit-boss-a4" class="input-field" style="text-align: left;" value="">
+            </div>
+            <div style="border: 1px solid var(--grid-line); padding: 8px; border-radius: 6px; margin-top: 4px;">
+                <b>Soal Boss 5:</b>
+                <input type="text" id="edit-boss-q5" class="input-field" style="text-align: left;" value="">
+                <input type="text" id="edit-boss-a5" class="input-field" style="text-align: left;" value="">
+            </div>
+
+            <button class="btn" onclick="saveAllBankSoal()" style="margin-top: 12px;">💾 SIMPAN SEMUA BANK SOAL</button>
+            <button class="btn btn-secondary" onclick="closeAnimatedModal('bank-soal-modal')">BATAL</button>
+        </div>
+    </div>
+
+    <!-- GAME ENGINE JAVASCRIPT -->
+    <script>
+        /* === DEFAULT QUESTION BANK === */
+        const defaultQuestionBank = {
+            doorQuestions: {
+                1: { q: "[Door #1] Titik Q(-4,2) direfleksikan terhadap garis y=x, dilanjutkan dengan rotasi 90 derajat searah jarum jam dengan pusat O(0,0). Koordinat bayangan akhir titik Q adalah...", a: "(-4,-2) | -4,-2" },
+                2: { q: "[Door #2] Titik P(2,-3) ditranslasikan oleh T(-1,4), kemudian dilanjutkan dengan refleksi terhadap sumbu Y. Koordinat bayangan akhir titik P adalah...", a: "(-1,1) | -1,1" },
+                3: { q: "[Door #3] Persamaan bayangan garis 2x+y=4 oleh translasi T(1,2) adalah...", a: "2x+y-8=0 | 2x+y=8" },
+                4: { q: "[Door #4] Persamaan bayangan garis x+2y=4 setelah dirotasikan sebesar 90 derajat berlawanan arah jarum jam dengan pusat O(0,0) adalah...", a: "2x-y+4=0 | 2x-y=-4 | -y+2x+4=0 | -y+2x=-4 | -2x+y-4=0 | -2x+y=4 | y-2x=4 | y-2x=-4 | y=2x-4" },
+                5: { q: "[Door #5] Persamaan bayangan garis y=3x-5 oleh refleksi terhadap garis x=2 adalah...", a: "y=7-x | y+x=7 | x+y=7 | x+y-7=0" },
+                6: { q: "[Door #6] Titik R(3,4) dirotasi sebesar 180 derajat dengan pusat O(0,0), lalu didilatasikan dengan pusat O(0,0) dan faktor skala 2. Koordinat bayangan akhirnya adalah...", a: "(-6,-8) | -6,-8 | (-6, -8)" },
+                7: { q: "[Door #7] Persamaan bayangan garis y=2x+4 jika didilatasikan dengan pusat O(0,0) dan faktor skala 2 adalah...", a: "y=2x+8 | y-2x=8 | -2x+y=8 | y-2x-8=0 | -2x+y-8=0 | 2x-y+8=0 | 2x-y=-8" },
+                8: { q: "[Door #8] Titik A ditranslasikan oleh T=(2,-3), kemudian dilanjutkan dengan refleksi terhadap sumbu Y. Jika koordinat bayangan akhir titik A adalah A''(-4, 5), maka koordinat titik A mula-mula adalah...", a: "(2,8) | (2, 8) | 2,8" },
+                9: { q: "[Door #9] Titik W(2,-4) didilatasikan dari titik pusat O(0,0) dengan faktor skala 1/2, lalu dirotasikan 90 derajat berlawanan arah jarum jam dengan pusat O(0,0). Koordinat titik W akhirnya adalah...", a: "(2,1) | 2,1 | (2, 1)" },
+                10: { q: "[Door #10] Titik K(4,-6) ditranslasikan oleh T(-2,2), kemudian didilatasikan dengan pusat (1,-1) dan faktor skala 2. Bayangan akhir titik K adalah...", a: "(3,-7) | 3,-7 | (3, -7)" },
+                11: { q: "[Door #11] Titik P(2,-3) ditranslasikan oleh T(-1,4), kemudian dilanjutkan dengan refleksi terhadap pusat (2,1). Koordinat bayangan akhir titik P adalah...", a: "(3,1) | 3,1 | (3, 1)" },
+                12: { q: "[Door #12] Bayangan sebuah garis lurus akibat dilatasi dari titik pusat O(0,0) dengan faktor skala 2 adalah x-2y+8=0. Persamaan awal garis lurus tersebut sebelum didilatasikan adalah...", a: "x-2y+4=0 | x-2y=-4 | 2x-4y+8=0 | 2x-4y=-8" },
+                13: { q: "[Door #13] Sebuah garis direfleksikan terhadap garis y = x, kemudian ditranslasikan oleh T = (1, -2) menghasilkan garis bayangan dengan persamaan 3x + 2y - 5 = 0. Persamaan garis awalnya adalah...", a: "2x+3y-6=0 | 2x+3y=6 | 3y+2x-6=0 | 3y+2x=6" },
+                14: { q: "[Door #14] Titik B dirotasikan sebesar 270 derajat searah jarum jam dengan pusat O(0,0), lalu didilatasikan dengan pusat O(0,0) dan faktor skala 2. Jika koordinat bayangan akhirnya adalah B''(-6, 8), maka koordinat awal titik B adalah...", a: "(4,3) | 4,3 | (4, 3)" },
+                15: { q: "[Door #15] Tentukan persamaan bayangan garis 2x - 3y = 6 oleh refleksi terhadap sumbu X dilanjutkan translasi T(1,2)...", a: "11x-12y+42=0 | 11x-12y=-42" },
+                16: { q: "[Door #16] Sebuah garis 5x+2y-10=0 dirotasikan sebesar 180 derajat terhadap pusat asal O(0,0). Persamaan bayangan garis tersebut menjadi...", a: "5x+2y+10=0 | 5x+2y=-10 | -5x-2y-10=0 | -5x-2y=10" },
+                17: { q: "[Door #17] Sebuah garis direfleksikan terhadap garis y = -x menghasilkan garis bayangan dengan persamaan 2x - 3y + 6 = 0. Persamaan garis awalnya adalah...!", a: "3x-2y+6=0 | 3x-2y=-6 | -3x+2y+6=0 | 2y-3x+6=0 | 2y-3x=-6" },
+                18: { q: "[Door #18] Sebuah garis ditransformasikan oleh translasi T(1,1), kemudian dilanjutkan dengan rotasi 180 derajat dengan pusat O(0,0). Jika persamaan bayangan akhir garis tersebut adalah x-y+4=0, maka persamaan garis awalnya adalah...", a: "x+y-4=0 | x+y=4 | -x-y=-4 | -x-y+4=0" }
+            },
+            bossQuestions: [
+                { q: "Sebuah drone pengintai terbang untuk memetakan lahan pertanian. Titik awal penerbangan (Base Station) berada di koordinat O(0,0). Drone bergerak dan saat ini berada di koordinat A(4, 6). Tiba-tiba, hembusan angin kencang menggeser posisi drone sejauh vektor T = (-2, 3). Setelah drone kembali stabil, pilot menginstruksikan drone untuk melakukan manuver memutari sebuah menara pengawas yang berada di koordinat M(2, 5) sebesar 90 derajat searah jarum jam untuk mengambil gambar panorama. Dimanakah titik koordinat akhir drone tersebut?", a: "(6,5) | 6,5 | (6, 5)" },
+                { q: "Seorang arsitek merancang taman kota. Sebuah jalan setapak berbentuk kurva parabola dirancang dengan persamaan y = x^2 - 4x + 3. Karena adanya perubahan tata letak drainase kota, taman tersebut harus direfleksikan secara simetris terhadap jalan utama pejalan kaki yang melintang diagonal dengan persamaan y = x. Kemudian, seluruh area taman (termasuk jalan setapak) harus digeser sejauh 2 satuan ke arah utara (searah sumbu Y positif) untuk menghindari area resapan air. Tentukan persamaan jalan setapak yang baru setelah direvisi!", a: "x=y^2-8y+15 | x+y^2-8y+15=0 | y^2-8y+15=x" },
+                { q: "Seorang arkeolog menemukan sebuah peti artefak di koordinat akhir H(5, -2). Dalam catatan kuno yang diterjemahkan, disebutkan bahwa untuk mencapai lokasi tersebut dari titik awal 'Pohon Beringin Sakti', seseorang harus berjalan lurus mengikuti arah vektor (3, 4), lalu sesampainya di sana, ia harus memutar arah sejauh 180 derajat dengan poros sebuah tugu nol yang berada di pusat koordinat (0,0). Di koordinat berapakah letak asli Pohon Beringin Sakti tersebut?", a: "(-8,-2) | -8,-2 | (-8, -2)" },
+                { q: "Akibat proses pemetaan ulang citra satelit pada peta digital, batas lurus sebuah perkebunan kelapa sawit tercatat berubah menjadi garis dengan persamaan 2x - y + 8 = 0. Diketahui sistem komputer memproses citra satelit tersebut melalui dua tahap: pertama gambar dipantulkan (direfleksikan) terhadap sumbu Y untuk mengoreksi orientasi lensa, lalu gambar digeser (ditranslasikan) sejauh 4 km ke arah selatan untuk menyesuaikan datum bumi. Tentukan persamaan garis batas asli perkebunan tersebut sebelum dipetakan oleh sistem!", a: "2x+y-12=0 | -2x-y+12=0 | 2x+y=12 | -2x-y=-12" },
+                { q: "Pada sistem keamanan bank, sebuah sinar laser tak kasat mata ditembakkan dari sebuah pemancar. Sinar tersebut terlebih dahulu memantul pada cermin diagonal yang memiliki persamaan y = x. Kemudian, pantulan sinar tersebut melewati lensa penguat yang melipatgandakan pancarannya 3 kali lipat (dilatasi) yang terpusat di O(0,0). Teknisi mencatat bahwa jalur akhir sinar laser setelah melewati lensa membentang pada garis lurus x + 2y - 12 = 0. Berapakah persamaan garis tembak laser pada lintasan awalnya (saat baru keluar dari pemancar)?", a: "2x+y-4=0 | 2x+y=4 | 6x+3y-12=0 | 6x+3y=12" }
+            ]
+        };
+
+        let questionBank = JSON.parse(JSON.stringify(defaultQuestionBank));
+
+        function getFreshInitialState() {
+            return {
+                gameState: {
+                    started: false,
+                    paused: false,
+                    startTimestamp: null,
+                    pausedElapsedSeconds: 0
+                },
+                questionBank: defaultQuestionBank,
+                robots: {
+                    1: { id: 1, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#00f0ff', history: [] },
+                    2: { id: 2, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#ff0055', history: [] },
+                    3: { id: 3, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#00ff66', history: [] },
+                    4: { id: 4, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#ffee00', history: [] },
+                    5: { id: 5, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#9d4edd', history: [] },
+                    6: { id: 6, x: -10, y: 10, angle: 0, status: 'MOVING', wrongAnswers: 0, doorPassed: false, currentDoorId: null, bossQuestionIndex: 0, finishTime: null, finishSeconds: null, color: '#ff7700', history: [] }
+                },
+                resetToken: Date.now()
+            };
+        }
+
+        /* === FIREBASE REALTIME DATABASE SYNC ENGINE === */
+        let db = null;
+        let roomRef = null;
+        let lastResetToken = null;
+
+        function updateConnectionStatus(isConnected, message) {
+            const el = document.getElementById('conn-status-display');
+            if (el) {
+                el.innerText = '🔥 ' + message;
+                el.style.borderColor = isConnected ? "var(--neon-green)" : "var(--neon-yellow)";
+                el.style.color = isConnected ? "var(--neon-green)" : "var(--neon-yellow)";
+            }
+        }
+
+        function initFirebaseSync() {
+            const customDbUrl = document.getElementById('firebase-url-input').value.trim() || "https://robotspacemaze2-default-rtdb.firebaseio.com/";
+            const firebaseConfig = { databaseURL: customDbUrl };
+
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                db = firebase.database();
+                roomRef = db.ref('rooms/' + roomCode);
+
+                updateConnectionStatus(true, "FIREBASE ONLINE");
+
+                roomRef.on('value', (snapshot) => {
+                    if (!snapshot.exists() || snapshot.val() === null) {
+                        const freshState = getFreshInitialState();
+                        roomRef.set(freshState);
+                        return;
+                    }
+
+                    const data = snapshot.val();
+
+                    if (data.resetToken) {
+                        if (lastResetToken === null) {
+                            lastResetToken = data.resetToken;
+                        } else if (lastResetToken !== data.resetToken) {
+                            lastResetToken = data.resetToken;
+                            performClientReset();
+                            return;
+                        }
+                    }
+
+                    if (data.questionBank) {
+                        questionBank = data.questionBank;
+                    }
+
+                    if (data.gameState) {
+                        gameState = data.gameState;
+                        updateGameStateUI();
+
+                        if (gameState.started && !gameState.paused && isAudioOn) {
+                            playBGM();
+                        } else if (gameState.paused) {
+                            stopBGM();
+                        }
+                    }
+
+                    if (data.robots) {
+                        for (let i = 1; i <= 6; i++) {
+                            if (data.robots[i]) {
+                                robotsData[i] = data.robots[i];
+                            }
+                        }
+                        drawMap();
+                        renderPodium();
+                        if (currentRole === 'teacher') renderTeacherGrid();
+                        updateLeaderboard();
+                        checkAllFinishedAutoPopup();
+                    }
+                });
+
+            } catch(e) {
+                console.error("Firebase init error:", e);
+                updateConnectionStatus(false, "FIREBASE ERROR");
+            }
+        }
+
+        function performClientReset() {
+            currentRole = null;
+            hasShownAllFinishedModal = false;
+            
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+                gameState.timerInterval = null;
+            }
+            stopBGM();
+
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('role-overlay').style.display = 'flex';
+            document.getElementById('role-display').innerText = "Pilih Peran Permainan";
+
+            const allModals = document.querySelectorAll('.modal');
+            allModals.forEach(m => m.style.display = 'none');
+        }
+
+        function broadcastState(action, payload) {
+            if (!roomRef) return;
+
+            if (action === 'UPDATE_ROBOT') {
+                roomRef.child('robots/' + payload.id).set(payload);
+            } else if (action === 'GAME_STATE') {
+                roomRef.child('gameState').set(payload);
+            } else if (action === 'QUESTION_BANK') {
+                roomRef.child('questionBank').set(payload);
+            } else if (action === 'RESET_ALL') {
+                const freshState = getFreshInitialState();
+                roomRef.set(freshState);
+            }
+        }
+
+        function getGameElapsedSeconds() {
+            if (!gameState.started) return 0;
+            if (gameState.paused) return gameState.pausedElapsedSeconds || 0;
+            if (!gameState.startTimestamp) return 0;
+            return Math.max(0, Math.floor((Date.now() - gameState.startTimestamp) / 1000));
+        }
+
+        function formatFinishTime(totalSeconds) {
+            if (typeof totalSeconds !== 'number' || isNaN(totalSeconds)) return "00.00.00";
+            const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const secs = String(totalSeconds % 60).padStart(2, '0');
+            return hrs + "." + mins + "." + secs;
+        }
+
+        /* === V21 GUARANTEED AUDIO ENGINE === */
+        let audioCtx = null;
+        let masterGainNode = null;
+        let synthBgmTimer = null;
+        let isAudioOn = true;
+        let audioUnlocked = false;
+
+        function forceUnlockAudioOnUserClick() {
+            if (!audioCtx) {
+                initAudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    audioUnlocked = true;
+                    updateAudioStatusDisplay("🟢 Audio Context Aktif & Berjalan!");
+                }).catch(e => console.log("Audio unlock error:", e));
+            } else if (audioCtx && audioCtx.state === 'running') {
+                audioUnlocked = true;
+                updateAudioStatusDisplay("🟢 Audio Context Aktif!");
+            }
+
+            const iframe = document.getElementById('yt-bgm-iframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                } catch(e){}
+            }
+
+            if (isAudioOn) {
+                playBGM();
+            }
+        }
+
+        function initAudioContext() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGainNode = audioCtx.createGain();
+                masterGainNode.gain.setValueAtTime(1.2, audioCtx.currentTime);
+                masterGainNode.connect(audioCtx.destination);
+            } catch(e) {
+                console.log("Web Audio API not supported:", e);
+            }
+        }
+
+        function updateAudioStatusDisplay(msg) {
+            const el = document.getElementById('audio-status-msg');
+            if (el) el.innerHTML = msg;
+        }
+
+        function userExplicitAudioTest() {
+            forceUnlockAudioOnUserClick();
+            playSound('fanfare');
+            updateAudioStatusDisplay("🔊 BACKSOUND LOUD ON & TONE TES DIINSIALISASI!");
+        }
+
+        function playBGM() {
+            if (!isAudioOn) return;
+            if (!audioCtx) initAudioContext();
+
+            startMelodicSciFiBGM();
+
+            const iframe = document.getElementById('yt-bgm-iframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                } catch(e){}
+            }
+        }
+
+        function stopBGM() {
+            stopMelodicSciFiBGM();
+            const iframe = document.getElementById('yt-bgm-iframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                } catch(e){}
+            }
+        }
+
+        function startMelodicSciFiBGM() {
+            if (synthBgmTimer) return;
+            if (!audioCtx) initAudioContext();
+
+            const bassline = [110.00, 110.00, 130.81, 146.83, 98.00, 110.00, 123.47, 130.81];
+            const synthArp = [220.00, 261.63, 329.63, 392.00, 440.00, 523.25, 659.25, 523.25];
+            let step = 0;
+
+            synthBgmTimer = setInterval(() => {
+                if(!isAudioOn || !audioCtx || audioCtx.state !== 'running') return;
+                const now = audioCtx.currentTime;
+                
+                const bassOsc = audioCtx.createOscillator(); 
+                const bassGain = audioCtx.createGain();
+                bassOsc.type = 'triangle'; 
+                bassOsc.frequency.setValueAtTime(bassline[step % bassline.length], now);
+                bassGain.gain.setValueAtTime(0.25, now); 
+                bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+                bassOsc.connect(bassGain); 
+                bassGain.connect(masterGainNode);
+                bassOsc.start(now); 
+                bassOsc.stop(now + 0.32);
+
+                const leadOsc = audioCtx.createOscillator(); 
+                const leadGain = audioCtx.createGain();
+                leadOsc.type = 'sine'; 
+                leadOsc.frequency.setValueAtTime(synthArp[(step * 3) % synthArp.length], now);
+                leadGain.gain.setValueAtTime(0.18, now); 
+                leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                leadOsc.connect(leadGain); 
+                leadOsc.connect(masterGainNode);
+                leadOsc.start(now); 
+                leadOsc.stop(now + 0.22);
+
+                step++;
+            }, 300);
+        }
+
+        function stopMelodicSciFiBGM() {
+            if (synthBgmTimer) {
+                clearInterval(synthBgmTimer);
+                synthBgmTimer = null;
+            }
+        }
+
+        function toggleAudio() {
+            isAudioOn = !isAudioOn;
+            document.getElementById('sound-icon').innerText = isAudioOn ? "🔊" : "🔇";
+            document.getElementById('main-sound-toggle-btn').innerHTML = (isAudioOn ? '<span id="sound-icon">🔊</span> BACKSOUND: LOUD ON' : '<span id="sound-icon">🔇</span> BACKSOUND: OFF');
+            
+            forceUnlockAudioOnUserClick();
+
+            if (isAudioOn) {
+                playBGM();
+            } else {
+                stopBGM();
+            }
+        }
+
+        function playSound(type) {
+            if(!isAudioOn) return;
+            if(!audioCtx) initAudioContext();
+            if(audioCtx.state !== 'running') audioCtx.resume();
+
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(masterGainNode);
+
+            if(type === 'move') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(280, now);
+                osc.frequency.exponentialRampToValueAtTime(560, now + 0.12);
+                gain.gain.setValueAtTime(0.35, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                osc.start(now); osc.stop(now + 0.12);
+            } else if(type === 'rot') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(350, now);
+                osc.frequency.exponentialRampToValueAtTime(700, now + 0.18);
+                gain.gain.setValueAtTime(0.4, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.18);
+                osc.start(now); osc.stop(now + 0.18);
+            } else if(type === 'reflect') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(500, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.5, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if(type === 'blackhole') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(750, now);
+                osc.frequency.exponentialRampToValueAtTime(90, now + 0.45);
+                gain.gain.setValueAtTime(0.55, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.45);
+                osc.start(now); osc.stop(now + 0.45);
+            } else if(type === 'shock') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(140, now);
+                osc.frequency.setValueAtTime(280, now + 0.1);
+                gain.gain.setValueAtTime(0.45, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
+            } else if(type === 'correct') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.1); osc.frequency.setValueAtTime(783.99, now + 0.2);
+                gain.gain.setValueAtTime(0.45, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+            } else if(type === 'fanfare') {
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                    o.type = 'triangle'; o.frequency.setValueAtTime(freq, now + idx * 0.15);
+                    g.gain.setValueAtTime(0.6, now + idx * 0.15); g.gain.linearRampToValueAtTime(0.01, now + idx * 0.15 + 0.3);
+                    o.connect(g); g.connect(masterGainNode);
+                    o.start(now + idx * 0.15); o.stop(now + idx * 0.15 + 0.3);
+                });
+            }
+        }
+
+        /* HELPER POP-UP ANIMASI */
+        function openAnimatedModal(modalId, soundType) {
+            if(soundType) playSound(soundType);
+            const m = document.getElementById(modalId);
+            if(m) m.style.display = 'flex';
+        }
+
+        function closeAnimatedModal(modalId) {
+            const m = document.getElementById(modalId);
+            if(m) m.style.display = 'none';
+        }
+
+        /* GAME STATE & DATA STRUCTURES */
+        let currentRole = null;
+        let roomCode = "MAZE2026";
+
+        let gameState = {
+            started: false,
+            paused: false,
+            startTimestamp: null,
+            pausedElapsedSeconds: 0,
+            timerInterval: null
+        };
+
+        const robotsData = {};
+        for(let i=1; i<=6; i++) {
+            robotsData[i] = {
+                id: i,
+                x: -10, y: 10,
+                angle: 0,
+                status: 'MOVING',
+                wrongAnswers: 0,
+                doorPassed: false,
+                currentDoorId: null,
+                bossQuestionIndex: 0,
+                finishTime: null,
+                finishSeconds: null,
+                color: ['#00f0ff', '#ff0055', '#00ff66', '#ffee00', '#9d4edd', '#ff7700'][i-1],
+                history: []
+            };
+        }
+
+        const redDoors = [
+            { id: 1, x: 5, y: 9 }, { id: 2, x: -8, y: 7 }, { id: 3, x: -5, y: 7 },
+            { id: 4, x: -1, y: 6 }, { id: 5, x: -8, y: 4 }, { id: 6, x: 1, y: 4 },
+            { id: 7, x: -4, y: 2 }, { id: 8, x: 8, y: 0 }, { id: 9, x: -2, y: -1 },
+            { id: 10, x: 4, y: -1 }, { id: 11, x: -10, y: -2 }, { id: 12, x: 5, y: -2 },
+            { id: 13, x: 7, y: -3 }, { id: 14, x: -2, y: -7 }, { id: 15, x: 4, y: -8 },
+            { id: 16, x: -8, y: -9 }, { id: 17, x: 1, y: -9 }, { id: 18, x: 7, y: -9 }
+        ];
+
+        const purpleBlackHoles = [
+            { x: 2, y: 8 }, { x: 9, y: 8 }, { x: 6, y: 2 },
+            { x: 2, y: -1 }, { x: -7, y: -4 }, { x: 8, y: 4 }
+        ];
+
+        function getDoorAt(x, y) { return redDoors.find(d => d.x === x && d.y === y); }
+        function isPurpleBlackHole(x, y) { return purpleBlackHoles.some(b => b.x === x && b.y === y); }
+
+        function checkFlexibleAnswer(userInput, targetKeyString) {
+            if (!userInput || !targetKeyString) return false;
+            const cleanUser = userInput.replaceAll(" ", "").toLowerCase();
+            const validKeys = targetKeyString.split('|');
+            return validKeys.some(key => {
+                const cleanKey = key.trim().replaceAll(" ", "").toLowerCase();
+                return cleanUser === cleanKey;
+            });
+        }
+
+        /* === DENAH FIXXX.PNG CANVAS RENDERING V21 === */
+        const mapCanvas = document.getElementById('mazeCanvas');
+        const ctx = mapCanvas.getContext('2d');
+        
+        const MARGIN = 20;
+        const MAZE_SIZE = mapCanvas.width - 2 * MARGIN;
+        const GRID_SIZE = 21;
+        const TILE_SIZE = MAZE_SIZE / GRID_SIZE;
+
+        let animFrameCounter = 0;
+
+        const pathGrid = Array(21).fill(0).map(() => Array(21).fill(0));
+
+        function setPath(gx, gy) {
+            const r = 10 - gy; const c = gx + 10;
+            if(r >= 0 && r < 21 && c >= 0 && c < 21) pathGrid[r][c] = 1;
+        }
+
+        function isWalkable(gx, gy) {
+            if(gx === -10 && gy === 10) return true;
+            if(gx === 10 && gy === -10) return true;
+            if(getDoorAt(gx, gy)) return true;
+            if(isPurpleBlackHole(gx, gy)) return true;
+            const r = 10 - gy; const c = gx + 10;
+            if(r < 0 || r >= 21 || c < 0 || c >= 21) return false;
+            return pathGrid[r][c] === 1;
+        }
+
+        function initPathGrid() {
+            for(let x=-10; x<=10; x++) {
+                for(let y=-10; y<=10; y++) {
+                    setPath(x, y);
+                }
+            }
+            const walls = [
+                {y:10, x:[-6,0,1,2,3,4,8,9,10]},
+                {y:9, x:[-10,-8,-7,-6,-4,-3,-2,0,1,2,3,6,8,9]},
+                {y:8, x:[-10,-8,-7,-6,-4,-3,-2,0,5,6]},
+                {y:7, x:[-10,-4,-2,0,2,3,4,5,8,9]},
+                {y:6, x:[-10,-9,-7,-6,-5,-4,2,7,8]},
+                {y:5, x:[-9,-7,-2,-1,0,4,5,6,7]},
+                {y:4, x:[-9,-7,-6,-5,-4,-2,2,3,4,7,9]},
+                {y:3, x:[-7,-2,0,7,9,10]},
+                {y:2, x:[-10,-9,-5,-3,-2,2,3,4,5,7]},
+                {y:1, x:[-7,-6,-5,-3,0,1,2,7,9]},
+                {y:0, x:[-9,-8,-7,-3,-1,0,1,2,3,5,6,7]},
+                {y:-1, x:[-9,-8,5,9]},
+                {y:-2, x:[-6,-5,-4,-3,-2,-1,0,1,2,3,7,8,9]},
+                {y:-3, x:[-10,-9,-8,-6,-1,5]},
+                {y:-4, x:[-10,-8,-4,-3,-1,1,2,3,4,5,7,8,9,10]},
+                {y:-5, x:[-10,-8,-6,-5,-4,-1,4,10]},
+                {y:-6, x:[-10,-4,-3,-1,0,1,2,4,6,7,9,10]},
+                {y:-7, x:[-10,-8,-7,-6,-4,2,4,6,7,9]},
+                {y:-8, x:[-6,-4,-2,-1,0,2]},
+                {y:-9, x:[-2,4,5,6,8,9,10]},
+                {y:-10, x:[-10,-9,-8,-7,-6,-5,-4,-3,-2,0,1,2,3,4]}
+            ];
+
+            walls.forEach(w => {
+                if (w.x && Array.isArray(w.x)) {
+                    w.x.forEach(xVal => {
+                        const r = 10 - w.y; const c = xVal + 10;
+                        if(r >= 0 && r < 21 && c >= 0 && c < 21) pathGrid[r][c] = 0;
+                    });
+                }
+            });
+        }
+
+        function drawRealisticBlackHole(cx, cy, size) {
+            ctx.save();
+            ctx.translate(cx + size/2, cy + size/2);
+            
+            const radius = size * 0.46;
+            
+            const auraGlow = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius * 1.1);
+            auraGlow.addColorStop(0, 'rgba(157, 78, 221, 0.9)');
+            auraGlow.addColorStop(0.5, 'rgba(0, 240, 255, 0.4)');
+            auraGlow.addColorStop(1, 'rgba(12, 18, 34, 0)');
+            ctx.fillStyle = auraGlow;
+            ctx.beginPath(); ctx.arc(0, 0, radius * 1.15, 0, Math.PI * 2); ctx.fill();
+
+            ctx.rotate(animFrameCounter * 0.04);
+            ctx.lineWidth = 1.5;
+            for(let i = 0; i < 4; i++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.strokeStyle = (i % 2 === 0) ? '#00f0ff' : '#e0aaff';
+                ctx.moveTo(radius * 0.2, 0);
+                ctx.quadraticCurveTo(radius * 0.6, radius * 0.7, radius * 0.95, radius * 0.1);
+                ctx.stroke();
+            }
+
+            ctx.rotate(-animFrameCounter * 0.08);
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.62, 0, Math.PI * 2);
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#c77dff';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#9d4edd';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
+            ctx.fillStyle = '#030509';
+            ctx.fill();
+            ctx.lineWidth = 1; ctx.strokeStyle = '#5a189a'; ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawRealisticDoor(cx, cy, size, doorId) {
+            ctx.save();
+            
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(cx, cy, size, size);
+
+            ctx.strokeStyle = '#374151'; ctx.lineWidth = 2;
+            ctx.strokeRect(cx + 1, cy + 1, size - 2, size - 2);
+
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(cx, cy, 4, size);
+            ctx.fillRect(cx + size - 4, cy, 4, size);
+
+            ctx.strokeStyle = '#ff0055';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 8; ctx.shadowColor = '#ff0055';
+            
+            const numBarriers = 3;
+            for(let k = 1; k <= numBarriers; k++) {
+                const yPos = cy + (size / (numBarriers + 1)) * k;
+                ctx.beginPath();
+                ctx.moveTo(cx + 4, yPos);
+                ctx.lineTo(cx + size - 4, yPos);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+
+            const badgeSize = size * 0.52;
+            const bx = cx + (size - badgeSize) / 2;
+            const by = cy + (size - badgeSize) / 2;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.fillRect(bx, by, badgeSize, badgeSize);
+            ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, badgeSize, badgeSize);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(doorId, cx + size/2, cy + size/2);
+
+            ctx.restore();
+        }
+
+        function drawAdvancedRobot(r, rx, ry, size) {
+            ctx.save();
+            ctx.translate(rx, ry);
+
+            const rad = (-r.angle) * Math.PI / 180;
+            ctx.rotate(rad);
+
+            const botR = size * 0.42;
+
+            ctx.beginPath();
+            ctx.moveTo(-botR * 0.7, -botR * 0.3);
+            ctx.lineTo(-botR * 1.25 - (Math.random() * 2), 0);
+            ctx.lineTo(-botR * 0.7, botR * 0.3);
+            ctx.closePath();
+            ctx.fillStyle = '#ff7700';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#ff5500';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.beginPath();
+            ctx.arc(0, 0, botR, 0, Math.PI * 2);
+            
+            const bodyGrad = ctx.createRadialGradient(-botR*0.3, -botR*0.3, botR*0.1, 0, 0, botR);
+            bodyGrad.addColorStop(0, '#ffffff');
+            bodyGrad.addColorStop(0.4, r.color);
+            bodyGrad.addColorStop(1, '#0f172a');
+            
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = '#000000'; ctx.stroke();
+
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-botR * 0.4, -botR * 1.05, botR * 0.8, botR * 0.3);
+            ctx.fillRect(-botR * 0.4, botR * 0.75, botR * 0.8, botR * 0.3);
+
+            ctx.beginPath();
+            ctx.ellipse(botR * 0.25, 0, botR * 0.35, botR * 0.55, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#030712';
+            ctx.fill();
+            ctx.lineWidth = 1.5; ctx.strokeStyle = r.color; ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(botR * 0.28, 0, botR * 0.22, -Math.PI*0.4, Math.PI*0.4);
+            ctx.lineWidth = 2.5; ctx.strokeStyle = '#00f0ff';
+            ctx.shadowBlur = 6; ctx.shadowColor = '#00f0ff';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.beginPath();
+            ctx.moveTo(0, -botR); ctx.lineTo(0, -botR * 1.3);
+            ctx.lineWidth = 1.5; ctx.strokeStyle = '#94a3b8'; ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, -botR * 1.35, 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffee00'; ctx.fill();
+
+            ctx.restore();
+
+            ctx.save();
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('R' + r.id, rx, ry + botR * 1.1);
+            ctx.restore();
+        }
+
+        function drawMap() {
+            animFrameCounter++;
+            ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+            ctx.fillStyle = '#060a17';
+            ctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+            for(let gx = -10; gx <= 10; gx++) {
+                for(let gy = -10; gy <= 10; gy++) {
+                    const cx = MARGIN + (gx + 10) * TILE_SIZE; 
+                    const cy = MARGIN + (10 - gy) * TILE_SIZE;
+
+                    if(gx === -10 && gy === 10) {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.fillRect(cx, cy, TILE_SIZE - 1, TILE_SIZE - 1);
+                        ctx.fillStyle = '#ffaa00';
+                        ctx.fillRect(cx + 2, cy + 2, TILE_SIZE - 5, TILE_SIZE - 5);
+                        ctx.fillStyle = '#000000'; ctx.font = 'bold 8px sans-serif';
+                        ctx.textAlign = 'center'; ctx.fillText('START', cx + TILE_SIZE/2, cy + TILE_SIZE/2 + 3);
+                    }
+                    else if(gx === 10 && gy === -10) {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.fillRect(cx, cy, TILE_SIZE - 1, TILE_SIZE - 1);
+                        ctx.fillStyle = '#00ff66';
+                        ctx.fillRect(cx + 2, cy + 2, TILE_SIZE - 5, TILE_SIZE - 5);
+                        ctx.fillStyle = '#000000'; ctx.font = 'bold 8px sans-serif';
+                        ctx.textAlign = 'center'; ctx.fillText('EXIT', cx + TILE_SIZE/2, cy + TILE_SIZE/2 + 3);
+                    }
+                    else if(isPurpleBlackHole(gx, gy)) {
+                        ctx.fillStyle = '#0b1329';
+                        ctx.fillRect(cx, cy, TILE_SIZE - 1, TILE_SIZE - 1);
+                        drawRealisticBlackHole(cx, cy, TILE_SIZE);
+                    }
+                    else if(getDoorAt(gx, gy)) {
+                        const door = getDoorAt(gx, gy);
+                        drawRealisticDoor(cx, cy, TILE_SIZE, door.id);
+                    }
+                    else if(isWalkable(gx, gy)) {
+                        ctx.fillStyle = '#0e172a';
+                        ctx.fillRect(cx, cy, TILE_SIZE - 1, TILE_SIZE - 1);
+                        
+                        ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
+                        ctx.strokeRect(cx + 2, cy + 2, TILE_SIZE - 5, TILE_SIZE - 5);
+                    }
+                    else {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.fillRect(cx, cy, TILE_SIZE - 1, TILE_SIZE - 1);
+                        
+                        ctx.fillStyle = '#0f172a';
+                        ctx.fillRect(cx + 2, cy + 2, TILE_SIZE - 5, TILE_SIZE - 5);
+
+                        ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+                        ctx.strokeRect(cx + 1, cy + 1, TILE_SIZE - 3, TILE_SIZE - 3);
+                    }
+                }
+            }
+
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for(let gx = -10; gx <= 10; gx++) {
+                const cx = MARGIN + (gx + 10) * TILE_SIZE + TILE_SIZE / 2;
+                ctx.fillStyle = (gx === 0) ? '#ffee00' : '#00f0ff';
+                ctx.fillText(gx, cx, MARGIN / 2);
+                ctx.fillText(gx, cx, mapCanvas.height - MARGIN / 2);
+            }
+
+            for(let gy = -10; gy <= 10; gy++) {
+                const cy = MARGIN + (10 - gy) * TILE_SIZE + TILE_SIZE / 2;
+                ctx.fillStyle = (gy === 0) ? '#ffee00' : '#00f0ff';
+                ctx.fillText(gy, MARGIN / 2, cy);
+                ctx.fillText(gy, mapCanvas.width - MARGIN / 2, cy);
+            }
+
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(MARGIN, MARGIN, MAZE_SIZE, MAZE_SIZE);
+
+            for(let i=1; i<=6; i++) {
+                const r = robotsData[i];
+                const rx = MARGIN + (r.x + 10) * TILE_SIZE + TILE_SIZE/2;
+                const ry = MARGIN + (10 - r.y) * TILE_SIZE + TILE_SIZE/2;
+
+                drawAdvancedRobot(r, rx, ry, TILE_SIZE);
+            }
+        }
+
+        /* RENDER PODIUM PEMENANG DI BAWAH PETA */
+        function renderPodium() {
+            const container = document.getElementById('podium-grid-container');
+            if(!container) return;
+            container.innerHTML = '';
+
+            const finishedRobots = Object.values(robotsData).filter(r => r.status === 'FINISHED');
+            const sorted = [...finishedRobots].sort((a,b) => (a.finishSeconds || 0) - (b.finishSeconds || 0));
+
+            const rankBadges = [
+                { class: 'rank-1', label: '🥇 #1' },
+                { class: 'rank-2', label: '🥈 #2' },
+                { class: 'rank-3', label: '🥉 #3' },
+                { class: 'rank-sub', label: '#4' },
+                { class: 'rank-sub', label: '#5' },
+                { class: 'rank-sub', label: '#6' }
+            ];
+
+            for(let i = 0; i < 6; i++) {
+                const slot = document.createElement('div');
+                const rankInfo = rankBadges[i];
+
+                if(i < sorted.length) {
+                    const bot = sorted[i];
+                    slot.className = 'podium-slot filled';
+                    slot.innerHTML = `
+                        <div class="podium-rank ${rankInfo.class}">${rankInfo.label}</div>
+                        <div class="podium-avatar" style="background: ${bot.color}; color: #000;">🤖</div>
+                        <div class="podium-bot-name" style="color: ${bot.color};">ROBOT ${bot.id}</div>
+                        <div class="podium-time">${bot.finishTime || '00.00.00'}</div>
+                    `;
+                } else {
+                    slot.className = 'podium-slot';
+                    slot.innerHTML = `
+                        <div class="podium-rank" style="background: rgba(255,255,255,0.05); color: #666; border: 1px dashed #444;">${rankInfo.label}</div>
+                        <div class="podium-avatar" style="background: rgba(255,255,255,0.05); color: #444; border: 1px dashed #444;">❓</div>
+                        <div class="podium-bot-name" style="color: #666; font-size:0.68rem;">KOSONG</div>
+                        <div class="podium-time" style="color: #444;">--.--.--</div>
+                    `;
+                }
+                container.appendChild(slot);
+            }
+        }
+
+        /* PERAN PERMAINAN */
+        function promptTeacherPassword() { forceUnlockAudioOnUserClick(); openAnimatedModal('password-modal'); }
+
+        function verifyTeacherPassword() {
+            forceUnlockAudioOnUserClick();
+            const pass = document.getElementById('teacher-pass-input').value;
+            if(pass === "0123") {
+                closeAnimatedModal('password-modal');
+                selectRole('teacher');
+            } else { alert("🔒 PASSWORD SALAH!"); }
+        }
+
+        function selectRole(role) {
+            forceUnlockAudioOnUserClick();
+            currentRole = role;
+            roomCode = document.getElementById('room-code-input').value.trim() || "MAZE2026";
+            document.getElementById('room-code-val').innerText = roomCode;
+            document.getElementById('role-overlay').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+
+            if(role === 'teacher') {
+                document.getElementById('role-display').innerText = "👨‍🏫 PERAN: GURU (MISSION CONTROL)";
+                document.getElementById('student-control-panel').style.display = 'none';
+                document.getElementById('teacher-dashboard-panel').style.display = 'block';
+                populateDoorDropdown(); renderTeacherGrid();
+            } else {
+                document.getElementById('role-display').innerText = "🤖 PERAN: TIM ROBOT " + role;
+                document.getElementById('student-control-panel').style.display = 'block';
+                document.getElementById('teacher-dashboard-panel').style.display = 'none';
+            }
+
+            initFirebaseSync();
+            drawMap();
+            renderPodium();
+            updateUIInfo();
+        }
+
+        /* STUDENT TRANSFORM TAB SWITCHING */
+        let activeTab = 'translasi';
+        function switchTransformTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+
+            document.getElementById('subpanel-translasi').style.display = tab === 'translasi' ? 'block' : 'none';
+            document.getElementById('subpanel-rotasi').style.display = tab === 'rotasi' ? 'block' : 'none';
+            document.getElementById('subpanel-refleksi').style.display = tab === 'refleksi' ? 'block' : 'none';
+
+            calculatePreview();
+        }
+
+        function calculatePreview() {
+            if(typeof currentRole !== 'number') return;
+            const r = robotsData[currentRole];
+            let px = r.x, py = r.y;
+
+            if(activeTab === 'translasi') {
+                const tx = parseFloat(document.getElementById('v-tx').value) || 0;
+                const ty = parseFloat(document.getElementById('v-ty').value) || 0;
+                px = r.x + tx; py = r.y + ty;
+            } else if(activeTab === 'rotasi') {
+                const a = parseFloat(document.getElementById('m-a').value) || 0;
+                const b = parseFloat(document.getElementById('m-b').value) || 0;
+                const c = parseFloat(document.getElementById('m-c').value) || 0;
+                const d = parseFloat(document.getElementById('m-d').value) || 0;
+                const xc = parseFloat(document.getElementById('rot-a').value) || 0;
+                const yc = parseFloat(document.getElementById('rot-b').value) || 0;
+
+                px = a * (r.x - xc) + b * (r.y - yc) + xc;
+                py = c * (r.x - xc) + d * (r.y - yc) + yc;
+            } else if(activeTab === 'refleksi') {
+                const type = document.getElementById('ref-type').value;
+                const val = parseFloat(document.getElementById('ref-val').value) || 0;
+                if(type === 'x') { px = 2 * val - r.x; py = r.y; }
+                else { px = r.x; py = 2 * val - r.y; }
+            }
+
+            document.getElementById('preview-target').innerText = "P'(" + px + ", " + py + ")";
+            return { px, py };
+        }
+
+        /* EKSEKUSI TRANSFORMASI ROBOT */
+        function executeTransformation() {
+            forceUnlockAudioOnUserClick();
+            if(typeof currentRole !== 'number') return;
+            if(!gameState.started || gameState.paused) {
+                alert("⚠️ PERMAINAN DIPAUSE / BELUM DIMULAI OLEH GURU!");
+                return;
+            }
+
+            const r = robotsData[currentRole];
+            const target = calculatePreview();
+            const newX = target.px; const newY = target.py;
+
+            if(activeTab === 'rotasi') {
+                const xc = parseFloat(document.getElementById('rot-a').value);
+                const yc = parseFloat(document.getElementById('rot-b').value);
+
+                if (isNaN(xc) || isNaN(yc) || xc !== r.x || yc !== r.y) {
+                    alert("⚠️ TRANSFORMASI ROTASI GAGAL!\nPusat rotasi [a, b] harus diisi sesuai titik koordinat robot saat ini.");
+                    return;
+                }
+            }
+
+            if(newX < -10 || newX > 10 || newY < -10 || newY > 10) {
+                openAnimatedModal('wall-crash-modal', 'shock');
+                return;
+            }
+
+            if(activeTab === 'translasi') {
+                const tx = parseFloat(document.getElementById('v-tx').value) || 0;
+                const ty = parseFloat(document.getElementById('v-ty').value) || 0;
+
+                let isValidHeadDir = false;
+                if(r.angle === 0 && tx > 0 && ty === 0) isValidHeadDir = true;
+                else if(r.angle === 90 && tx === 0 && ty > 0) isValidHeadDir = true;
+                else if(r.angle === 180 && tx < 0 && ty === 0) isValidHeadDir = true;
+                else if(r.angle === 270 && tx === 0 && ty < 0) isValidHeadDir = true;
+
+                if(!isValidHeadDir) {
+                    const dirNames = { 0: "KANAN ➡️", 90: "ATAS ⬆️", 180: "KIRI ⬅️", 270: "BAWAH ⬇️" };
+                    alert("⚠️ PERGERAKAN HANYA BISA MAJU SEARAH KEPALA ROBOT!\nArah kepala saat ini: " + dirNames[r.angle] + ".\nLakukan ROTASI terlebih dahulu jika ingin berbelok!");
+                    return;
+                }
+
+                let currX = r.x; let currY = r.y;
+                let stepX = Math.sign(tx); let stepY = Math.sign(ty);
+                let steps = Math.max(Math.abs(tx), Math.abs(ty));
+
+                let hitBlackHole = null; let hitDoor = null; let hitWall = false;
+
+                for(let i = 1; i <= steps; i++) {
+                    let checkX = currX + stepX; let checkY = currY + stepY;
+
+                    if(isPurpleBlackHole(checkX, checkY)) {
+                        hitBlackHole = { x: checkX, y: checkY };
+                        break;
+                    }
+                    if(getDoorAt(checkX, checkY)) {
+                        hitDoor = getDoorAt(checkX, checkY);
+                        currX = checkX; currY = checkY; break;
+                    }
+                    if(!isWalkable(checkX, checkY)) {
+                        hitWall = true; break;
+                    }
+                    currX = checkX; currY = checkY;
+                }
+
+                if(hitBlackHole) {
+                    document.getElementById('blackhole-text').innerText = "Robot melintasi / melewati Black Hole di titik (" + hitBlackHole.x + ", " + hitBlackHole.y + ") dan terserap! Dikembangkan kembali ke titik Start (-10, 10). Gunakan REFLEKSI untuk melompati Black Hole!";
+                    openAnimatedModal('blackhole-modal', 'blackhole');
+                    r.x = -10; r.y = 10; r.status = 'SHOCKED';
+
+                    if (!r.history) r.history = [];
+                    r.history.push({
+                        time: new Date().toLocaleTimeString(),
+                        type: "Black Hole",
+                        detail: "Terserap di titik (" + hitBlackHole.x + ", " + hitBlackHole.y + ") & Kembali ke Start (-10, 10)",
+                        status: "TERSERAP 🌀"
+                    });
+                } else if(hitWall) {
+                    openAnimatedModal('wall-crash-modal', 'shock');
+                    return;
+                } else if(hitDoor) {
+                    playSound('move');
+                    r.x = currX; r.y = currY; r.status = 'DOOR'; r.currentDoorId = hitDoor.id;
+                    openDoorModal(hitDoor.id);
+                } else {
+                    playSound('move');
+                    r.x = currX; r.y = currY;
+                    if(currX === 10 && currY === -10) {
+                        r.status = 'BOSS';
+                        openAnimatedModal('boss-entrance-modal', 'shock');
+                    } else { r.status = 'MOVING'; }
+                }
+            }
+            else if(activeTab === 'rotasi') {
+                const a = parseFloat(document.getElementById('m-a').value) || 0;
+                const b = parseFloat(document.getElementById('m-b').value) || 0;
+                const c = parseFloat(document.getElementById('m-c').value) || 0;
+                const d = parseFloat(document.getElementById('m-d').value) || 0;
+
+                if(!isWalkable(newX, newY)) {
+                    openAnimatedModal('wall-crash-modal', 'shock');
+                    return;
+                }
+
+                if(a === 0 && b === -1 && c === 1 && d === 0) r.angle = (r.angle + 90) % 360;
+                else if(a === 0 && b === 1 && c === -1 && d === 0) r.angle = (r.angle - 90 + 360) % 360;
+                else if(a === -1 && b === 0 && c === 0 && d === -1) r.angle = (r.angle + 180) % 360;
+
+                playSound('rot'); r.x = newX; r.y = newY; r.status = 'MOVING';
+            }
+            else if(activeTab === 'refleksi') {
+                const type = document.getElementById('ref-type').value;
+                const val = parseFloat(document.getElementById('ref-val').value) || 0;
+                
+                let midX = r.x, midY = r.y;
+                if(type === 'x') midX = val; else midY = val;
+
+                const bh = isPurpleBlackHole(midX, midY);
+                if(!bh) {
+                    alert("❌ REFLEKSI GAGAL!\nRefleksi HANYA dapat digunakan untuk melompati Black Hole!\nPastikan garis cermin x=a atau y=b berada tepat di posisi Black Hole di depan robot.");
+                    return;
+                }
+
+                if(!isWalkable(newX, newY)) {
+                    alert("❌ REFLEKSI GAGAL!\nTitik tujuan bayangan hasil refleksi menabrak dinding atau berada di luar peta labirin.");
+                    return;
+                }
+
+                r.x = newX; r.y = newY; r.status = 'MOVING';
+                openAnimatedModal('reflection-success-modal', 'reflect');
+            }
+
+            drawMap();
+            updateUIInfo();
+            broadcastState('UPDATE_ROBOT', r);
+        }
+
+        /* DOOR & BOSS HANDLERS */
+        function openDoorModal(doorId) {
+            const qObj = questionBank.doorQuestions[doorId] || { q: "[Door #" + doorId + "] Selesaikan soal tantangan!", a: "2x-3y=13" };
+            document.getElementById('door-modal-title').innerText = "🚪 ENERGY SECURITY DOOR #" + doorId;
+            document.getElementById('door-question-text').innerText = qObj.q;
+            document.getElementById('door-answer-input').value = "";
+            openAnimatedModal('door-modal');
+        }
+
+        function submitDoorAnswer() {
+            forceUnlockAudioOnUserClick();
+            const ans = document.getElementById('door-answer-input').value;
+            const r = robotsData[currentRole];
+            const doorId = r.currentDoorId || 1;
+            const qObj = questionBank.doorQuestions[doorId];
+            const keyString = qObj ? qObj.a : "2x-3y=13";
+
+            closeAnimatedModal('door-modal');
+
+            if (!r.history) r.history = [];
+
+            if(checkFlexibleAnswer(ans, keyString)) {
+                r.status = 'MOVING'; r.doorPassed = true;
+                r.history.push({
+                    time: new Date().toLocaleTimeString(),
+                    type: "Pintu Keamanan",
+                    detail: "Door #" + doorId + " (" + (qObj?.q || 'Door Question') + ")",
+                    status: "BERHASIL 🟢"
+                });
+                openAnimatedModal('door-open-modal', 'correct');
+            } else {
+                r.wrongAnswers++; r.status = 'SHOCKED';
+                r.history.push({
+                    time: new Date().toLocaleTimeString(),
+                    type: "Pintu Keamanan",
+                    detail: "Door #" + doorId,
+                    status: "GAGAL 🔴"
+                });
+                openAnimatedModal('shock-modal', 'shock');
+            }
+            broadcastState('UPDATE_ROBOT', r);
+        }
+
+        function openBossModal() {
+            const r = robotsData[currentRole];
+            document.getElementById('boss-q-num').innerText = "BOSS QUESTION " + (r.bossQuestionIndex + 1) + "/5";
+            document.getElementById('boss-question-text').innerText = questionBank.bossQuestions[r.bossQuestionIndex].q;
+            document.getElementById('boss-answer-input').value = "";
+            openAnimatedModal('boss-modal');
+        }
+
+        function submitBossAnswer() {
+            forceUnlockAudioOnUserClick();
+            const r = robotsData[currentRole];
+            const ans = document.getElementById('boss-answer-input').value;
+            const keyString = questionBank.bossQuestions[r.bossQuestionIndex].a;
+
+            closeAnimatedModal('boss-modal');
+
+            if (!r.history) r.history = [];
+
+            if(checkFlexibleAnswer(ans, keyString)) {
+                r.bossQuestionIndex++;
+                r.history.push({
+                    time: new Date().toLocaleTimeString(),
+                    type: "Final Boss Question",
+                    detail: "Boss Soal #" + r.bossQuestionIndex,
+                    status: "BERHASIL 🟢"
+                });
+
+                if(r.bossQuestionIndex >= 5) {
+                    r.status = 'FINISHED';
+                    const elapsed = getGameElapsedSeconds();
+                    r.finishSeconds = elapsed;
+                    r.finishTime = formatFinishTime(elapsed);
+
+                    openAnimatedModal('boss-defeat-modal', 'fanfare');
+                } else {
+                    openAnimatedModal('boss-hit-modal', 'correct');
+                }
+            } else {
+                r.wrongAnswers++;
+                r.history.push({
+                    time: new Date().toLocaleTimeString(),
+                    type: "Final Boss Question",
+                    detail: "Boss Soal #" + (r.bossQuestionIndex + 1),
+                    status: "GAGAL 🔴"
+                });
+                openAnimatedModal('boss-attack-modal', 'shock');
+            }
+            broadcastState('UPDATE_ROBOT', r);
+            updateLeaderboard();
+            renderPodium();
+        }
+
+        function showWinnerModalFinal() {
+            closeAnimatedModal('boss-defeat-modal');
+            const r = robotsData[currentRole];
+            const finishedCount = Object.values(robotsData).filter(bot => bot.status === 'FINISHED').length;
+            const rankTitles = ["1st WINNER", "2nd PLACE", "3rd PLACE", "4th PLACE", "5th PLACE", "6th PLACE"];
+            const rankText = rankTitles[Math.min(finishedCount - 1, 5)];
+
+            document.getElementById('winner-rank-title').innerText = "🏆 " + rankText + "!";
+            document.getElementById('winner-details').innerText = "ROBOT " + r.id + " - FINISH TIME: " + (r.finishTime || formatFinishTime(getGameElapsedSeconds()));
+            openAnimatedModal('winner-modal', 'fanfare');
+        }
+
+        /* TEACHER CONTROL & AUTOMATIC ALL FINISHED POP-UP */
+        let hasShownAllFinishedModal = false;
+
+        function checkAllFinishedAutoPopup() {
+            const totalRobots = 6;
+            const finishedRobots = Object.values(robotsData).filter(r => r.status === 'FINISHED');
+            
+            if (finishedRobots.length === totalRobots && !hasShownAllFinishedModal) {
+                hasShownAllFinishedModal = true;
+                
+                const tbody = document.getElementById('all-finished-tbody');
+                tbody.innerHTML = '';
+                
+                const sorted = [...finishedRobots].sort((a,b) => (a.finishSeconds || 0) - (b.finishSeconds || 0));
+                
+                sorted.forEach((r, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = "1px solid var(--grid-line)";
+                    tr.innerHTML = `
+                        <td style="padding: 8px; font-weight:bold; color:var(--neon-yellow);">JUARA #${idx + 1}</td>
+                        <td style="color:${r.color}; font-weight:bold;">🤖 ROBOT ${r.id}</td>
+                        <td style="font-family:monospace; font-size:1rem; color:var(--neon-green);">${r.finishTime || '00.00.00'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                openAnimatedModal('all-finished-modal', 'fanfare');
+            }
+        }
+
+        function teacherStartGame() {
+            forceUnlockAudioOnUserClick();
+            gameState.started = true;
+            gameState.paused = false;
+            
+            const currentElapsed = gameState.pausedElapsedSeconds || 0;
+            gameState.startTimestamp = Date.now() - (currentElapsed * 1000);
+            
+            if(!gameState.timerInterval) {
+                gameState.timerInterval = setInterval(() => {
+                    if(gameState.started && !gameState.paused) {
+                        updateGameStateUI();
+                    }
+                }, 1000);
+            }
+            playBGM(); updateGameStateUI();
+            broadcastState('GAME_STATE', gameState);
+        }
+
+        function teacherPauseGame() {
+            forceUnlockAudioOnUserClick();
+            if (!gameState.paused) {
+                gameState.pausedElapsedSeconds = getGameElapsedSeconds();
+                gameState.paused = true;
+                stopBGM();
+            } else {
+                gameState.paused = false;
+                gameState.startTimestamp = Date.now() - ((gameState.pausedElapsedSeconds || 0) * 1000);
+                playBGM();
+            }
+            updateGameStateUI();
+            broadcastState('GAME_STATE', gameState);
+        }
+
+        function updateGameStateUI() {
+            const statusEl = document.getElementById('game-status-text');
+            if(!gameState.started) statusEl.innerText = "BELUM DIMULAI";
+            else if(gameState.paused) statusEl.innerText = "DIPAUSE";
+            else statusEl.innerText = "BERJALAN";
+
+            const elapsed = getGameElapsedSeconds();
+            const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const secs = String(elapsed % 60).padStart(2, '0');
+            document.getElementById('game-timer').innerText = mins + "." + secs;
+        }
+
+        function populateDoorDropdown() {
+            const dd = document.getElementById('door-select-dropdown'); dd.innerHTML = '';
+            for(let i=1; i<=18; i++) {
+                const opt = document.createElement('option');
+                opt.value = i; opt.innerText = "Door #" + i + " (Lokasi: x=" + redDoors[i-1].x + ", y=" + redDoors[i-1].y + ")";
+                dd.appendChild(opt);
+            }
+            loadSelectedDoorQuestion();
+        }
+
+        function loadSelectedDoorQuestion() {
+            const doorId = document.getElementById('door-select-dropdown').value;
+            const qObj = questionBank.doorQuestions[doorId] || { q: "", a: "" };
+            document.getElementById('edit-door-q').value = qObj.q;
+            document.getElementById('edit-door-a').value = qObj.a;
+        }
+
+        function saveCurrentDoorQuestion() {
+            const doorId = document.getElementById('door-select-dropdown').value;
+            questionBank.doorQuestions[doorId] = {
+                q: document.getElementById('edit-door-q').value,
+                a: document.getElementById('edit-door-a').value
+            };
+            broadcastState('QUESTION_BANK', questionBank);
+            alert("💾 SOAL UNTUK DOOR #" + doorId + " BERHASIL DISIMPAN & DISINKRONKAN REAL-TIME KE SEMUA MURID!");
+        }
+
+        function saveAllBankSoal() {
+            saveCurrentDoorQuestion();
+            for(let k=1; k<=5; k++) {
+                questionBank.bossQuestions[k-1].q = document.getElementById("edit-boss-q" + k).value;
+                questionBank.bossQuestions[k-1].a = document.getElementById("edit-boss-a" + k).value;
+            }
+            broadcastState('QUESTION_BANK', questionBank);
+            alert("💾 SELURUH BANK SOAL BERHASIL DISIMPAN & DISINKRONKAN REAL-TIME KE SEMUA MURID!");
+            closeAnimatedModal('bank-soal-modal');
+        }
+
+        function openBankSoalModal() { 
+            for(let k=1; k<=5; k++) {
+                if(questionBank.bossQuestions[k-1]) {
+                    document.getElementById("edit-boss-q" + k).value = questionBank.bossQuestions[k-1].q;
+                    document.getElementById("edit-boss-a" + k).value = questionBank.bossQuestions[k-1].a;
+                }
+            }
+            loadSelectedDoorQuestion();
+            openAnimatedModal('bank-soal-modal'); 
+        }
+
+        function renderTeacherGrid() {
+            const container = document.getElementById('teacher-robots-grid'); container.innerHTML = '';
+            for(let i=1; i<=6; i++) {
+                const r = robotsData[i];
+                const historyList = r.history || [];
+                const doorsAttempted = historyList.filter(h => h.type === "Pintu Keamanan");
+                const doorsPassed = doorsAttempted.filter(h => h.status.includes("BERHASIL")).map(h => h.detail.split(' '));
+                const uniqueDoorsPassed = [...new Set(doorsPassed)];
+
+                const card = document.createElement('div'); card.className = 'robot-card';
+                card.innerHTML = `
+                    <div style="font-weight:bold; color:${r.color}; display:flex; justify-content:space-between; align-items:center;">
+                        <span>ROBOT ${i}</span>
+                        <span class="status-badge status-${r.status}">${r.status}</span>
+                    </div>
+                    <div style="font-size:0.75rem; margin:4px 0;">Posisi: (${r.x}, ${r.y})</div>
+                    <div style="font-size:0.75rem; color:var(--neon-yellow);">Riwayat Event: <b>${historyList.length} Event</b></div>
+                    <div style="font-size:0.72rem; color:#a0aec0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        Door Dilewati: ${uniqueDoorsPassed.length > 0 ? uniqueDoorsPassed.join(', ') : '-'}
+                    </div>
+                    <button class="btn btn-secondary" style="margin-top:6px; padding:4px 8px; font-size:0.72rem;" onclick="openRobotHistoryModal(${i})">📜 LIHAT RIWAYAT DETAIL</button>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        function openRobotHistoryModal(robotId) {
+            const r = robotsData[robotId];
+            if (!r) return;
+
+            document.getElementById('history-modal-title').innerText = "📜 RIWAYAT TANTANGAN ROBOT " + robotId;
+            const historyList = r.history || [];
+            
+            const doorsPassed = historyList.filter(h => h.type === "Pintu Keamanan" && h.status.includes("BERHASIL"));
+            const bossPassed = historyList.filter(h => h.type === "Final Boss Question" && h.status.includes("BERHASIL"));
+            const blackHolesHit = historyList.filter(h => h.type === "Black Hole");
+
+            document.getElementById('history-summary-stats').innerHTML = `
+                <b>TOTAL EVENT DICATAT:</b> ${historyList.length} Event<br>
+                <b>PINTU KEAMANAN TERBUKA:</b> ${doorsPassed.length} Door<br>
+                <b>SOAL BOSS TERJAWAB:</b> ${bossPassed.length}/5 Soal<br>
+                <b>BLACK HOLE TERTERASAP:</b> <span style="color:var(--neon-purple); font-weight:bold;">${blackHolesHit.length} Kali</span><br>
+                <b>SALAH JAWAB / TERSETURUM:</b> ${r.wrongAnswers} Kali
+            `;
+
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '';
+
+            if (historyList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Belum ada riwayat pengerjaan soal atau event.</td></tr>';
+            } else {
+                historyList.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${item.time || '-'}</td>
+                        <td><b>${item.type}</b></td>
+                        <td>${item.detail}</td>
+                        <td><b>${item.status}</b></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            openAnimatedModal('history-modal');
+        }
+
+        function updateLeaderboard() {
+            const tbody = document.getElementById('leaderboard-body');
+            const finishedRobots = Object.values(robotsData).filter(r => r.status === 'FINISHED');
+            if(finishedRobots.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666; padding: 6px;">Belum Ada Robot Finish</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            
+            const sorted = [...finishedRobots].sort((a,b) => (a.finishSeconds || 0) - (b.finishSeconds || 0));
+
+            sorted.forEach((r, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td style="padding:4px;">#' + (idx+1) + '</td><td style="color:' + r.color + '; font-weight:bold;">Robot ' + r.id + '</td><td style="font-family:monospace; font-weight:bold; color:var(--neon-green);">' + (r.finishTime || '00.00.00') + '</td>';
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateUIInfo() {
+            if(typeof currentRole === 'number') {
+                const r = robotsData[currentRole];
+                const dirNames = { 0: "KANAN ➡️", 90: "ATAS ⬆️", 180: "KIRI ⬅️", 270: "BAWAH ⬇️" };
+                document.getElementById('coord-info').innerText = "POSISI: P(" + r.x + ", " + r.y + ") | ARAH: " + (dirNames[r.angle] || r.angle + "°");
+                document.getElementById('current-head-dir').innerText = dirNames[r.angle] || r.angle + "°";
+            }
+        }
+
+        function resetGameAll() {
+            if(confirm("Reset seluruh data permainan untuk 6 tim?")) {
+                broadcastState('RESET_ALL', {});
+            }
+        }
+
+        initPathGrid();
+        renderPodium();
+        
+        setInterval(() => {
+            drawMap();
+            if(gameState.started && !gameState.paused) {
+                updateGameStateUI();
+            }
+        }, 80);
+    </script>
+</body>
+</html>
